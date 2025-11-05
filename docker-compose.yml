@@ -1,0 +1,208 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # LOAD BALANCER - HAProxy (L7 Routing)
+  # ==========================================
+  haproxy:
+    image: haproxy:2.9-alpine
+    container_name: cdn-haproxy
+    ports:
+      - "80:80"
+      - "8404:8404"  # Stats page
+    volumes:
+      - ./infrastructure/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      - upload-service
+      - nginx-edge
+    networks:
+      - cdn-network
+    restart: unless-stopped
+
+  # ==========================================
+  # UPLOAD SERVICE - Go (High Throughput)
+  # ==========================================
+  upload-service:
+    build:
+      context: ./upload-service
+      dockerfile: Dockerfile
+    container_name: cdn-upload-service
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=cdn_app
+      - DB_PASSWORD=cdn_password_2024
+      - DB_NAME=cdn
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - postgres
+      - minio
+      - redis
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 512M
+
+  # ==========================================
+  # CDN EDGE - Nginx (Content Delivery)
+  # ==========================================
+  nginx-edge:
+    image: nginx:1.25-alpine
+    container_name: cdn-nginx-edge
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/cache:/data/nginx/cache
+    depends_on:
+      - minio
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 2G
+
+  # ==========================================
+  # PROCESSING WORKER - Go + FFmpeg
+  # ==========================================
+  worker-1:
+    build:
+      context: ./processing-worker
+      dockerfile: Dockerfile
+    container_name: cdn-worker-1
+    environment:
+      - WORKER_ID=worker-1
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=cdn_app
+      - DB_PASSWORD=cdn_password_2024
+      - DB_NAME=cdn
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - REDIS_ADDR=redis:6379
+      - WORKER_CONCURRENCY=4
+    depends_on:
+      - postgres
+      - minio
+      - redis
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '8'
+          memory: 4G
+
+  # ==========================================
+  # INFRASTRUCTURE - PostgreSQL
+  # ==========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: cdn-postgres
+    environment:
+      - POSTGRES_DB=cdn
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres_admin_2024
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=1GB
+      -c effective_cache_size=3GB
+      -c maintenance_work_mem=256MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=5242kB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+
+  # ==========================================
+  # INFRASTRUCTURE - MinIO (Object Storage)
+  # ==========================================
+  minio:
+    image: minio/minio:latest
+    container_name: cdn-minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin123
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"  # API
+      - "9001:9001"  # Console
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================
+  # INFRASTRUCTURE - Redis (Queue + Cache)
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: cdn-redis
+    command: >
+      redis-server
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+# ==========================================
+# NETWORKS
+# ==========================================
+networks:
+  cdn-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+# ==========================================
+# VOLUMES
+# ==========================================
+volumes:
+  postgres-data:
+    driver: local
+  minio-data:
+    driver: local
+  redis-data:
+    driver: local
