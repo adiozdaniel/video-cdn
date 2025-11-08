@@ -63,7 +63,7 @@ CREATE INDEX idx_variants_video ON video_variants(video_id);
 
 -- Analytics events table (high-volume inserts)
 CREATE TABLE analytics_events (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGSERIAL,
     video_id VARCHAR(36) NOT NULL,
     event_type VARCHAR(50) NOT NULL, -- play, pause, buffer, error, quality_change
     user_id VARCHAR(36),
@@ -71,7 +71,8 @@ CREATE TABLE analytics_events (
     timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
     metadata JSONB, -- Additional event data
     ip_address INET,
-    user_agent TEXT
+    user_agent TEXT,
+    PRIMARY KEY (id, timestamp)
 ) PARTITION BY RANGE (timestamp);
 
 -- Create partitions for analytics (monthly)
@@ -122,7 +123,7 @@ END;
 $$ language 'plpgsql';
 
 -- Create database user with appropriate permissions
-CREATE USER cdn_app WITH PASSWORD 'changeme_cdn_password';
+CREATE USER cdn_app WITH PASSWORD 'cdn_password_2024';
 GRANT CONNECT ON DATABASE cdn TO cdn_app;
 GRANT USAGE ON SCHEMA public TO cdn_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO cdn_app;
@@ -131,7 +132,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE O
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cdn_app;
 
 -- Read-only user for replicas
-CREATE USER cdn_readonly WITH PASSWORD 'changeme_readonly_password';
+CREATE USER cdn_readonly WITH PASSWORD 'readonly_password_2024';
 GRANT CONNECT ON DATABASE cdn TO cdn_readonly;
 GRANT USAGE ON SCHEMA public TO cdn_readonly;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO cdn_readonly;
