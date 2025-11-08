@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Videos table - Main entity
 CREATE TABLE videos (
-    id VARCHAR(36) PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     filename VARCHAR(512) NOT NULL,
     size BIGINT NOT NULL,
     duration INTEGER, -- seconds
@@ -27,7 +27,7 @@ CREATE INDEX idx_videos_uploaded ON videos(uploaded_at DESC) WHERE uploaded_at I
 -- Processing jobs table
 CREATE TABLE processing_jobs (
     id SERIAL PRIMARY KEY,
-    video_id VARCHAR(36) NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
     status VARCHAR(20) NOT NULL DEFAULT 'QUEUED',
     worker_id VARCHAR(50),
     progress INTEGER DEFAULT 0, -- 0-100
@@ -48,7 +48,7 @@ CREATE INDEX idx_jobs_worker ON processing_jobs(worker_id) WHERE worker_id IS NO
 -- Video variants table (different bitrates)
 CREATE TABLE video_variants (
     id SERIAL PRIMARY KEY,
-    video_id VARCHAR(36) NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
     name VARCHAR(20) NOT NULL, -- 1080p, 720p, 480p
     resolution VARCHAR(20) NOT NULL, -- 1920x1080
     bitrate VARCHAR(20) NOT NULL, -- 5000k
@@ -64,10 +64,10 @@ CREATE INDEX idx_variants_video ON video_variants(video_id);
 -- Analytics events table (high-volume inserts)
 CREATE TABLE analytics_events (
     id BIGSERIAL,
-    video_id VARCHAR(36) NOT NULL,
+    video_id UUID NOT NULL,
     event_type VARCHAR(50) NOT NULL, -- play, pause, buffer, error, quality_change
-    user_id VARCHAR(36),
-    session_id VARCHAR(36) NOT NULL,
+    user_id UUID,
+    session_id UUID NOT NULL,
     timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
     metadata JSONB, -- Additional event data
     ip_address INET,
