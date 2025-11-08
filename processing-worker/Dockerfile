@@ -1,39 +1,44 @@
-# Multi-stage build for processing worker with FFmpeg
-FROM golang:1.21-alpine AS builder
+# Build stage
+FROM rust:latest as builder
 
 WORKDIR /app
 
 # Install build dependencies
-RUN apk add --no-cache git
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy go mod files
-COPY go.mod go.sum* ./
-RUN go mod download
+# Copy manifests
+COPY Cargo.toml Cargo.lock ./
 
 # Copy source code
-COPY . .
+COPY src ./src
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-w -s" \
-    -o processing-worker \
-    ./cmd/worker
+# Build release binary
+RUN cargo build --release
 
-# Final stage - with FFmpeg
-FROM alpine:latest
+# Runtime stage
+FROM debian:bookworm-slim
 
-# Install FFmpeg and other dependencies
-RUN apk add --no-cache \
+WORKDIR /app
+
+# Install runtime dependencies including FFmpeg
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
     ffmpeg \
-    ca-certificates
+    ffprobe \
+    && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /root/
+# Create temp directory for processing
+RUN mkdir -p /tmp/processing && chmod 777 /tmp/processing
 
-# Copy binary from builder
-COPY --from=builder /app/processing-worker .
+# Copy the binary from builder
+COPY --from=builder /app/target/release/processing_worker /app/processing_worker
 
-# Create temp directory for video processing
-RUN mkdir -p /tmp/processing
+# Set environment variables
+ENV TEMP_DIR=/tmp/processing
 
-# Run the worker
-CMD ["./processing-worker"]
+# Run the binary
+CMD ["/app/processing_worker"]
