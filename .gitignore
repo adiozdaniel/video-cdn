@@ -1,0 +1,64 @@
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Go (for any remaining Go code)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+postgres-data/
+pgdata/
+
+# Docker
+docker-compose.override.yml
+
+# MinIO
+minio-data/
+
+# Nginx cache
+infrastructure/nginx/cache/*
+!infrastructure/nginx/cache/.gitkeep
+
+# Backups
+*-backup/
+*.bak
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS
+Thumbs.db
+.DS_Store
