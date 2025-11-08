@@ -6,6 +6,7 @@ use crate::config::Config;
 #[derive(Clone)]
 pub struct StorageClient {
     client: Client,
+    presign_client: Client,
     bucket: String,
     public_endpoint: String,
     internal_endpoint: String,
@@ -14,6 +15,7 @@ pub struct StorageClient {
 impl StorageClient {
     pub async fn new(config: &Config) -> Result<Self, anyhow::Error> {
         let endpoint_url = format!("http://{}", config.minio_endpoint);
+        let public_endpoint_url = format!("http://{}", config.minio_public_endpoint);
 
         let credentials = Credentials::new(
             &config.minio_access_key,
@@ -23,15 +25,27 @@ impl StorageClient {
             "minio",
         );
 
+        // Internal client for operations
         let s3_config = aws_sdk_s3::config::Builder::new()
             .region(Region::new("us-east-1"))
             .endpoint_url(&endpoint_url)
-            .credentials_provider(credentials)
+            .credentials_provider(credentials.clone())
             .force_path_style(true)
             .behavior_version(BehaviorVersion::latest())
             .build();
 
         let client = Client::from_conf(s3_config);
+
+        // Public client for presigned URLs
+        let presign_s3_config = aws_sdk_s3::config::Builder::new()
+            .region(Region::new("us-east-1"))
+            .endpoint_url(&public_endpoint_url)
+            .credentials_provider(credentials)
+            .force_path_style(true)
+            .behavior_version(BehaviorVersion::latest())
+            .build();
+
+        let presign_client = Client::from_conf(presign_s3_config);
 
         // Ensure bucket exists
         let bucket_name = config.minio_bucket.clone();
@@ -51,6 +65,7 @@ impl StorageClient {
 
         Ok(Self {
             client,
+            presign_client,
             bucket: config.minio_bucket.clone(),
             public_endpoint: config.minio_public_endpoint.clone(),
             internal_endpoint: config.minio_endpoint.clone(),
@@ -64,21 +79,15 @@ impl StorageClient {
     ) -> Result<String, anyhow::Error> {
         let presigning_config = PresigningConfig::expires_in(Duration::from_secs(expiration_seconds))?;
 
+        // Use presign_client which is configured with the public endpoint
         let presigned_request = self
-            .client
+            .presign_client
             .put_object()
             .bucket(&self.bucket)
             .key(object_key)
             .presigned(presigning_config)
             .await?;
 
-        let mut url = presigned_request.uri().to_string();
-
-        // Replace internal endpoint with public endpoint for browser access
-        if !self.internal_endpoint.is_empty() && !self.public_endpoint.is_empty() {
-            url = url.replace(&self.internal_endpoint, &self.public_endpoint);
-        }
-
-        Ok(url)
+        Ok(presigned_request.uri().to_string())
     }
 }
