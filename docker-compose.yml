@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
 
   # ==========================================
-  # UPLOAD SERVICE - Go (High Throughput)
+  # UPLOAD SERVICE - Rust (High Performance)
   # ==========================================
   upload-service:
     build:
@@ -34,6 +34,7 @@ services:
       - DB_PASSWORD=cdn_password_2024
       - DB_NAME=cdn
       - MINIO_ENDPOINT=minio:9000
+      - MINIO_PUBLIC_ENDPOINT=localhost:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin123
       - REDIS_ADDR=redis:6379
@@ -47,7 +48,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: '0.5'
           memory: 512M
 
   # ==========================================
@@ -67,11 +68,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4'
+          cpus: '1'
           memory: 2G
 
   # ==========================================
-  # PROCESSING WORKER - Go + FFmpeg
+  # PROCESSING WORKER - Rust + FFmpeg
   # ==========================================
   worker-1:
     build:
@@ -100,7 +101,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '8'
+          cpus: '2'
           memory: 4G
 
   # ==========================================
@@ -122,7 +123,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4'
+          cpus: '1'
           memory: 4G
     command: >
       postgres
@@ -183,7 +184,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: '0.5'
           memory: 2G
 
 # ==========================================
