@@ -76,4 +76,28 @@ public class MinioService {
 
         log.info("Master playlist uploaded successfully");
     }
+
+    /**
+     * Upload profile-specific playlist (Phase 4: for reassembled chunks)
+     */
+    public void uploadProfilePlaylist(UUID videoId, String profile, String content) throws Exception {
+        String key = String.format("hls/%s/%s.m3u8", videoId, profile);
+
+        log.info("Uploading {} playlist: {}", profile, key);
+
+        File tempFile = File.createTempFile(profile + "-" + videoId, ".m3u8");
+        Files.writeString(tempFile.toPath(), content);
+
+        PutObjectRequest request = PutObjectRequest.builder()
+            .bucket(bucket)
+            .key(key)
+            .contentType("application/vnd.apple.mpegurl")
+            .build();
+
+        s3Client.putObject(request, tempFile.toPath());
+
+        tempFile.delete();
+
+        log.info("{} playlist uploaded successfully", profile);
+    }
 }
