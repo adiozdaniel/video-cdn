@@ -24,16 +24,29 @@ public class PlaylistGeneratorService {
     private static final int DEFAULT_BANDWIDTH_240P = 400000;
 
     /**
-     * Generate basic master playlist with just 480p (for PLAYABLE state)
+     * Generate basic master playlist with first completed profile (for PLAYABLE state)
      */
     public void generateBasicPlaylist(UUID videoId) throws Exception {
         log.info("Generating basic master playlist for video: {}", videoId);
 
+        List<VideoProfileJob> jobs = profileJobRepository.findByVideoId(videoId);
+
+        // Find first completed profile
+        VideoProfileJob firstCompleted = jobs.stream()
+            .filter(j -> "COMPLETED".equals(j.getStatus()))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("No completed profiles found for PLAYABLE video"));
+
+        String profile = firstCompleted.getProfile();
+        int bandwidth = getBandwidth(profile);
+        String resolution = getResolution(profile);
+
         String playlist = "#EXTM3U\n#EXT-X-VERSION:3\n\n";
-        playlist += "#EXT-X-STREAM-INF:BANDWIDTH=" + DEFAULT_BANDWIDTH_480P + ",RESOLUTION=854x480\n";
-        playlist += "480p.m3u8\n";
+        playlist += "#EXT-X-STREAM-INF:BANDWIDTH=" + bandwidth + ",RESOLUTION=" + resolution + "\n";
+        playlist += profile + ".m3u8\n";
 
         minioService.uploadMasterPlaylist(videoId, playlist);
+        log.info("Generated basic playlist with first completed profile: {}", profile);
     }
 
     /**
