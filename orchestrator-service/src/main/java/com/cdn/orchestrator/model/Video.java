@@ -3,6 +3,8 @@ package com.cdn.orchestrator.model;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -41,6 +43,7 @@ public class Video {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String metadata; // JSON metadata
 }
