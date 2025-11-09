@@ -57,7 +57,7 @@ impl Transcoder {
             let preset = preset.to_string();
 
             let task = tokio::spawn(async move {
-                Self::transcode_profile(&ffmpeg_path, &input, &output, &profile, &preset).await
+                Self::transcode_profile(&ffmpeg_path, &input, &output, &profile, &preset, None, None, None).await
             });
 
             tasks.push(task);
@@ -77,13 +77,16 @@ impl Transcoder {
         Ok(())
     }
 
-    /// Transcode a single profile (public wrapper for Phase 2)
+    /// Transcode a single profile (Phase 3/4: supports optional chunk time range)
     pub async fn transcode_single_profile(
         &self,
         input_path: &Path,
         output_dir: &Path,
         profile: &TranscodeProfile,
         preset: &str,
+        chunk_id: Option<i32>,
+        start_time: Option<f64>,
+        end_time: Option<f64>,
     ) -> Result<(), anyhow::Error> {
         Self::transcode_profile(
             &self.ffmpeg_path,
@@ -91,21 +94,41 @@ impl Transcoder {
             output_dir,
             profile,
             preset,
+            chunk_id,
+            start_time,
+            end_time,
         ).await
     }
 
-    /// Transcode a single profile
+    /// Transcode a single profile (Phase 3/4: with optional chunk support)
     async fn transcode_profile(
         ffmpeg_path: &str,
         input_path: &Path,
         output_dir: &Path,
         profile: &TranscodeProfile,
         preset: &str,
+        chunk_id: Option<i32>,
+        start_time: Option<f64>,
+        end_time: Option<f64>,
     ) -> Result<(), anyhow::Error> {
-        let output_file = output_dir.join(format!("{}.m3u8", profile.name));
-        let segment_pattern = output_dir.join(format!("{}_%03d.ts", profile.name));
+        // Phase 4: Adjust output filenames for chunks
+        let (output_file, segment_pattern) = if let Some(chunk) = chunk_id {
+            let output_file = output_dir.join(format!("{}_chunk{}.m3u8", profile.name, chunk));
+            let segment_pattern = output_dir.join(format!("{}_chunk{}_%03d.ts", profile.name, chunk));
+            (output_file, segment_pattern)
+        } else {
+            let output_file = output_dir.join(format!("{}.m3u8", profile.name));
+            let segment_pattern = output_dir.join(format!("{}_%03d.ts", profile.name));
+            (output_file, segment_pattern)
+        };
 
-        tracing::info!("Transcoding {} profile with {} preset", profile.name, preset);
+        let chunk_info = if let Some(chunk) = chunk_id {
+            format!(" (chunk {})", chunk)
+        } else {
+            String::new()
+        };
+
+        tracing::info!("Transcoding {} profile{} with {} preset", profile.name, chunk_info, preset);
 
         // Use CRF (Constant Rate Factor) instead of CBR for faster encoding
         // CRF values: 18-23 is good quality range (lower = better quality, slower)
@@ -117,26 +140,66 @@ impl Transcoder {
             _ => "26",               // 360p/240p: Lower quality is acceptable
         };
 
+        // Phase 4: Build FFmpeg args with optional chunk time range
+        let mut ffmpeg_args: Vec<String> = Vec::new();
+
+        // Add chunk time range if specified (must come BEFORE -i)
+        if let (Some(start), Some(end)) = (start_time, end_time) {
+            let duration = end - start;
+            ffmpeg_args.push("-ss".to_string());
+            ffmpeg_args.push(start.to_string());
+            ffmpeg_args.push("-t".to_string());
+            ffmpeg_args.push(duration.to_string());
+            tracing::info!("Processing chunk from {:.2}s to {:.2}s (duration: {:.2}s)", start, end, duration);
+        }
+
+        // Input file
+        ffmpeg_args.push("-i".to_string());
+        ffmpeg_args.push(input_path.to_str().unwrap().to_string());
+
+        // Video encoding settings
+        ffmpeg_args.push("-vf".to_string());
+        ffmpeg_args.push(format!("scale={}:{}", profile.width, profile.height));
+        ffmpeg_args.push("-c:v".to_string());
+        ffmpeg_args.push("libx264".to_string());
+        ffmpeg_args.push("-crf".to_string());
+        ffmpeg_args.push(crf.to_string());
+        ffmpeg_args.push("-maxrate".to_string());
+        ffmpeg_args.push(profile.bitrate.clone());
+        ffmpeg_args.push("-bufsize".to_string());
+        ffmpeg_args.push(format!("{}k", profile.bitrate.trim_end_matches('k').parse::<u32>().unwrap_or(5000) * 2));
+
+        // Audio encoding settings
+        ffmpeg_args.push("-c:a".to_string());
+        ffmpeg_args.push("aac".to_string());
+        ffmpeg_args.push("-b:a".to_string());
+        ffmpeg_args.push(profile.audio_bitrate.clone());
+
+        // Encoding preset and GOP settings
+        ffmpeg_args.push("-preset".to_string());
+        ffmpeg_args.push(preset.to_string());
+        ffmpeg_args.push("-g".to_string());
+        ffmpeg_args.push("48".to_string());
+        ffmpeg_args.push("-keyint_min".to_string());
+        ffmpeg_args.push("48".to_string());
+        ffmpeg_args.push("-sc_threshold".to_string());
+        ffmpeg_args.push("0".to_string());
+
+        // HLS settings
+        ffmpeg_args.push("-f".to_string());
+        ffmpeg_args.push("hls".to_string());
+        ffmpeg_args.push("-hls_time".to_string());
+        ffmpeg_args.push("4".to_string());
+        ffmpeg_args.push("-hls_playlist_type".to_string());
+        ffmpeg_args.push("vod".to_string());
+        ffmpeg_args.push("-hls_segment_filename".to_string());
+        ffmpeg_args.push(segment_pattern.to_str().unwrap().to_string());
+
+        // Output file
+        ffmpeg_args.push(output_file.to_str().unwrap().to_string());
+
         let output = Command::new(ffmpeg_path)
-            .args(&[
-                "-i", input_path.to_str().unwrap(),
-                "-vf", &format!("scale={}:{}", profile.width, profile.height),
-                "-c:v", "libx264",
-                "-crf", crf,              // CRF mode instead of -b:v
-                "-maxrate", &profile.bitrate,  // Max bitrate cap
-                "-bufsize", &format!("{}k", profile.bitrate.trim_end_matches('k').parse::<u32>().unwrap_or(5000) * 2),
-                "-c:a", "aac",
-                "-b:a", &profile.audio_bitrate,
-                "-preset", preset,        // Dynamic preset based on duration
-                "-g", "48",
-                "-keyint_min", "48",
-                "-sc_threshold", "0",
-                "-f", "hls",
-                "-hls_time", "4",
-                "-hls_playlist_type", "vod",
-                "-hls_segment_filename", segment_pattern.to_str().unwrap(),
-                output_file.to_str().unwrap(),
-            ])
+            .args(&ffmpeg_args)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .output()

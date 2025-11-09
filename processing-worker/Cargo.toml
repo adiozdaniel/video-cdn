@@ -19,8 +19,8 @@ aws-config = "1.5"
 aws-sdk-s3 = "1.47"
 bytes = "1"
 
-# Redis
-redis = { version = "0.26", features = ["tokio-comp", "connection-manager", "streams"] }
+# Kafka
+rdkafka = { version = "0.36", features = ["tokio", "cmake-build"] }
 
 # UUID
 uuid = { version = "1", features = ["v4", "serde"] }

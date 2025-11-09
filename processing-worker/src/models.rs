@@ -12,6 +12,54 @@ pub struct ProcessingJob {
     pub timestamp: i64,
 }
 
+/// Phase 3/4: Profile-specific job message from orchestrator
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProfileJobMessage {
+    #[serde(rename = "videoId")]
+    pub video_id: String,
+    pub profile: String,
+    #[serde(rename = "inputPath")]
+    pub input_path: String,
+    #[serde(rename = "outputPath")]
+    pub output_path: String,
+    pub preset: String,
+    pub priority: Option<String>,
+    pub timestamp: Option<i64>,
+
+    // Phase 4: Optional chunk fields (null = whole video)
+    #[serde(rename = "chunkId")]
+    pub chunk_id: Option<i32>,
+    #[serde(rename = "startTime")]
+    pub start_time: Option<f64>,
+    #[serde(rename = "endTime")]
+    pub end_time: Option<f64>,
+}
+
+/// Phase 3/4: Completion event to send back to orchestrator
+#[derive(Debug, Serialize)]
+pub struct CompletionEvent {
+    #[serde(rename = "videoId")]
+    pub video_id: String,
+    pub profile: String,
+    pub status: String,
+    #[serde(rename = "workerId")]
+    pub worker_id: String,
+
+    // Metrics
+    #[serde(rename = "durationMs")]
+    pub duration_ms: Option<i64>,
+    #[serde(rename = "filesUploaded")]
+    pub files_uploaded: Option<i32>,
+
+    // Phase 4: Optional chunk support
+    #[serde(rename = "chunkId")]
+    pub chunk_id: Option<i32>,
+
+    // Error handling
+    #[serde(rename = "errorMessage")]
+    pub error_message: Option<String>,
+}
+
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct Video {
     pub id: Uuid,

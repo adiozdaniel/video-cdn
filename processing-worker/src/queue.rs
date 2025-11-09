@@ -1,119 +1,107 @@
-use redis::{Client, aio::ConnectionManager, AsyncCommands, streams::StreamReadOptions, streams::StreamReadReply};
-use crate::models::ProcessingJob;
+use rdkafka::config::ClientConfig;
+use rdkafka::consumer::{Consumer, StreamConsumer};
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::Message;
+use std::time::Duration;
+use crate::models::{ProfileJobMessage, CompletionEvent};
 
 pub struct JobQueue {
-    connection: ConnectionManager,
-    worker_id: String,
-    consumer_group: String,
+    consumer: StreamConsumer,
+    producer: FutureProducer,
+    profile: String,
 }
 
 impl JobQueue {
-    pub async fn new(redis_url: &str, worker_id: &str) -> Result<Self, anyhow::Error> {
-        let client = Client::open(redis_url)?;
-        let connection = ConnectionManager::new(client).await?;
+    pub async fn new(
+        kafka_brokers: &str,
+        group_id: &str,
+        profile: &str,
+    ) -> Result<Self, anyhow::Error> {
+        let consumer: StreamConsumer = ClientConfig::new()
+            .set("bootstrap.servers", kafka_brokers)
+            .set("group.id", group_id)
+            .set("enable.auto.commit", "true")
+            .set("auto.offset.reset", "earliest")
+            .set("session.timeout.ms", "6000")
+            .create()?;
 
-        let consumer_group = "processing-workers".to_string();
+        let topic = format!("processing-jobs-{}", profile);
+        consumer.subscribe(&[&topic])?;
+
+        tracing::info!("Subscribed to Kafka topic: {}", topic);
+
+        let producer: FutureProducer = ClientConfig::new()
+            .set("bootstrap.servers", kafka_brokers)
+            .set("message.timeout.ms", "5000")
+            .set("acks", "all")
+            .set("retries", "3")
+            .set("enable.idempotence", "true")
+            .create()?;
 
         Ok(Self {
-            connection,
-            worker_id: worker_id.to_string(),
-            consumer_group,
+            consumer,
+            producer,
+            profile: profile.to_string(),
         })
     }
 
-    /// Initialize consumer group (idempotent)
-    pub async fn init_consumer_group(&mut self) -> Result<(), anyhow::Error> {
-        let result: Result<String, redis::RedisError> = self
-            .connection
-            .xgroup_create_mkstream(
-                "processing-jobs",
-                &self.consumer_group,
-                "$",
-            )
-            .await;
-
-        match result {
-            Ok(_) => {
-                tracing::info!("Created consumer group: {}", self.consumer_group);
-            }
-            Err(e) => {
-                if e.to_string().contains("BUSYGROUP") {
-                    tracing::info!("Consumer group already exists: {}", self.consumer_group);
-                } else {
-                    return Err(e.into());
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Read jobs from the stream
-    pub async fn read_jobs(&mut self, count: usize, block: usize) -> Result<Vec<(String, ProcessingJob)>, anyhow::Error> {
-        let opts = StreamReadOptions::default()
-            .count(count)
-            .block(block)
-            .group(&self.consumer_group, &self.worker_id);
-
-        let result: StreamReadReply = self
-            .connection
-            .xread_options(&["processing-jobs"], &[">"], &opts)
-            .await?;
-
+    /// Read profile jobs from Kafka
+    pub async fn read_profile_jobs(&self) -> Result<Vec<ProfileJobMessage>, anyhow::Error> {
         let mut jobs = Vec::new();
 
-        for stream_key in result.keys {
-            for stream_id in stream_key.ids {
-                let id = stream_id.id.clone();
-
-                // Helper function to extract string from redis::Value
-                fn get_string(value: &redis::Value) -> Option<String> {
-                    match value {
-                        redis::Value::BulkString(bytes) => String::from_utf8(bytes.clone()).ok(),
-                        redis::Value::SimpleString(s) => Some(s.clone()),
-                        _ => None,
-                    }
+        // Poll for messages with 5 second timeout
+        match tokio::time::timeout(
+            Duration::from_secs(5),
+            self.consumer.recv()
+        ).await {
+            Ok(Ok(message)) => {
+                if let Some(payload) = message.payload() {
+                    let job: ProfileJobMessage = serde_json::from_slice(payload)?;
+                    tracing::debug!("Received job from partition {}, offset {}: videoId={}",
+                        message.partition(), message.offset(), job.video_id);
+                    jobs.push(job);
                 }
-
-                let video_id = stream_id.map.get("videoId")
-                    .and_then(get_string)
-                    .ok_or_else(|| anyhow::anyhow!("Missing videoId"))?;
-
-                let job_type = stream_id.map.get("type")
-                    .and_then(get_string)
-                    .unwrap_or_else(|| "transcode".to_string());
-
-                let priority = stream_id.map.get("priority")
-                    .and_then(get_string)
-                    .unwrap_or_else(|| "normal".to_string());
-
-                let timestamp = stream_id.map.get("timestamp")
-                    .and_then(get_string)
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(0);
-
-                let job = ProcessingJob {
-                    video_id,
-                    job_type,
-                    priority,
-                    timestamp,
-                };
-
-                jobs.push((id, job));
+            }
+            Ok(Err(e)) => {
+                tracing::error!("Kafka consumer error: {}", e);
+                return Err(e.into());
+            }
+            Err(_) => {
+                // Timeout - no messages available, return empty vec
             }
         }
 
         Ok(jobs)
     }
 
-    /// Acknowledge job completion
-    pub async fn ack_job(&mut self, message_id: &str) -> Result<(), anyhow::Error> {
-        let _: i64 = self
-            .connection
-            .xack("processing-jobs", &self.consumer_group, &[message_id])
-            .await?;
+    /// Publish completion event to orchestrator
+    pub async fn publish_completion(
+        &self,
+        event: &CompletionEvent,
+    ) -> Result<(), anyhow::Error> {
+        let json = serde_json::to_string(event)?;
+        let topic = "processing-jobs-completed";
 
-        tracing::debug!("Acknowledged job: {}", message_id);
-        Ok(())
+        let record = FutureRecord::to(topic)
+            .key(&event.video_id)
+            .payload(&json);
+
+        match self.producer.send(record, Duration::from_secs(5)).await {
+            Ok((partition, offset)) => {
+                tracing::info!(
+                    "Published completion event for {} {} to partition {} offset {} (status: {})",
+                    event.video_id,
+                    event.profile,
+                    partition,
+                    offset,
+                    event.status
+                );
+                Ok(())
+            }
+            Err((e, _)) => {
+                tracing::error!("Failed to publish completion event: {}", e);
+                Err(e.into())
+            }
+        }
     }
 }

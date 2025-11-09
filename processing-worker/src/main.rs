@@ -23,72 +23,76 @@ async fn main() -> Result<(), anyhow::Error> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    tracing::info!("Starting processing worker...");
+    tracing::info!("🚀 Starting Phase 3/4 processing worker...");
 
     // Load configuration
     let config = Config::from_env()?;
     tracing::info!("Worker ID: {}", config.worker_id);
+    tracing::info!("Profile: {}", config.profile);
     tracing::info!("Concurrency: {}", config.worker_concurrency);
-
-    // Initialize database pool
-    tracing::info!("Connecting to database...");
-    let db_pool = db::create_pool(&config.database_url).await?;
-    tracing::info!("Database connection established");
 
     // Initialize storage client
     tracing::info!("Initializing storage client...");
     let storage = StorageClient::new(&config).await?;
     tracing::info!("Storage client initialized");
 
-    // Initialize job queue
-    tracing::info!("Connecting to Redis job queue...");
-    let mut queue = JobQueue::new(&config.redis_url, &config.worker_id).await?;
-    queue.init_consumer_group().await?;
-    tracing::info!("Job queue connected");
+    // Initialize Kafka job queue
+    tracing::info!("Connecting to Kafka...");
+    let queue = JobQueue::new(&config.kafka_brokers, &config.kafka_group_id, &config.profile).await?;
+    tracing::info!("Kafka consumer ready for profile: {}", config.profile);
 
-    // Create video processor
-    let processor = VideoProcessor::new(config.clone(), storage, db_pool);
+    // Create video processor (Phase 3/4: single profile processing)
+    let processor = VideoProcessor::new(config.clone(), storage);
 
-    tracing::info!("Worker ready! Waiting for jobs...");
+    tracing::info!("✅ Worker ready! Waiting for {} profile jobs from Kafka", config.profile);
 
     // Main processing loop
     loop {
-        match process_jobs(&mut queue, &processor, config.worker_concurrency).await {
+        match process_profile_jobs(&queue, &processor).await {
             Ok(_) => {}
             Err(e) => {
                 tracing::error!("Error processing jobs: {}", e);
                 // Sleep before retrying
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
         }
     }
 }
 
-async fn process_jobs(
-    queue: &mut JobQueue,
+async fn process_profile_jobs(
+    queue: &JobQueue,
     processor: &VideoProcessor,
-    _concurrency: usize,
 ) -> Result<(), anyhow::Error> {
-    // Read jobs from the queue (block for 5 seconds if no jobs)
-    let jobs = queue.read_jobs(1, 5000).await?;
+    // Read profile jobs from Kafka (blocks for up to 5 seconds)
+    let jobs = queue.read_profile_jobs().await?;
 
     if jobs.is_empty() {
         return Ok(());
     }
 
-    for (message_id, job) in jobs {
-        tracing::info!("Received job: {:?}", job);
+    for job in jobs {
+        tracing::info!("📥 Received {} profile job for video {}", job.profile, job.video_id);
 
-        // Process the job
-        match processor.process_job(&job).await {
-            Ok(_) => {
-                // Acknowledge the job
-                queue.ack_job(&message_id).await?;
-                tracing::info!("Job acknowledged: {}", message_id);
+        if let Some(chunk_id) = job.chunk_id {
+            tracing::info!("   └─ Chunk {} ({:.2}s - {:.2}s)",
+                chunk_id,
+                job.start_time.unwrap_or(0.0),
+                job.end_time.unwrap_or(0.0)
+            );
+        }
+
+        // Process the job and get completion event
+        match processor.process_profile_job(&job).await {
+            Ok(completion_event) => {
+                // Publish completion event to orchestrator
+                if let Err(e) = queue.publish_completion(&completion_event).await {
+                    tracing::error!("Failed to publish completion event: {}", e);
+                }
+                // Kafka auto-commits offsets
             }
             Err(e) => {
-                tracing::error!("Failed to process job {}: {}", message_id, e);
-                // Don't acknowledge - let it be retried or handled by dead letter queue
+                tracing::error!("Failed to process job: {}", e);
+                // Kafka will retry based on consumer group settings
             }
         }
     }

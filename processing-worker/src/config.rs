@@ -8,7 +8,9 @@ pub struct Config {
     pub minio_access_key: String,
     pub minio_secret_key: String,
     pub minio_bucket: String,
-    pub redis_url: String,
+    pub kafka_brokers: String,
+    pub kafka_group_id: String,
+    pub profile: String,
     pub worker_concurrency: usize,
     pub temp_dir: String,
 }
@@ -35,8 +37,14 @@ impl Config {
         let minio_secret_key = env::var("MINIO_SECRET_KEY").unwrap_or_else(|_| "minioadmin123".to_string());
         let minio_bucket = env::var("MINIO_BUCKET").unwrap_or_else(|_| "videos".to_string());
 
-        let redis_addr = env::var("REDIS_ADDR").unwrap_or_else(|_| "localhost:6379".to_string());
-        let redis_url = format!("redis://{}", redis_addr);
+        let kafka_brokers = env::var("KAFKA_BROKERS")
+            .unwrap_or_else(|_| "localhost:9092".to_string());
+
+        let kafka_group_id = env::var("KAFKA_GROUP_ID")
+            .unwrap_or_else(|_| "processing-workers".to_string());
+
+        let profile = env::var("PROFILE")
+            .unwrap_or_else(|_| "480p".to_string());
 
         let worker_concurrency = env::var("WORKER_CONCURRENCY")
             .unwrap_or_else(|_| "4".to_string())
@@ -52,7 +60,9 @@ impl Config {
             minio_access_key,
             minio_secret_key,
             minio_bucket,
-            redis_url,
+            kafka_brokers,
+            kafka_group_id,
+            profile,
             worker_concurrency,
             temp_dir,
         })
