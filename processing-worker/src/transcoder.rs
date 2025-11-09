@@ -68,7 +68,7 @@ impl Transcoder {
 
         tracing::info!("Transcoding {} profile", profile.name);
 
-        let status = Command::new(ffmpeg_path)
+        let output = Command::new(ffmpeg_path)
             .args(&[
                 "-i", input_path.to_str().unwrap(),
                 "-vf", &format!("scale={}:{}", profile.width, profile.height),
@@ -87,11 +87,12 @@ impl Transcoder {
                 output_file.to_str().unwrap(),
             ])
             .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::piped())
-            .status()
+            .stderr(std::process::Stdio::null())
+            .output()
             .await?;
 
-        if !status.success() {
+        if !output.status.success() {
+            tracing::error!("FFmpeg failed for {} profile", profile.name);
             anyhow::bail!("FFmpeg failed for {} profile", profile.name);
         }
 

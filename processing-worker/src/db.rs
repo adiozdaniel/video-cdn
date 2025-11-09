@@ -98,3 +98,35 @@ pub async fn mark_job_completed(
 
     Ok(())
 }
+
+pub async fn update_job_progress(
+    pool: &PgPool,
+    video_id: Uuid,
+    progress: i32,
+) -> Result<(), sqlx::Error> {
+    query(
+        "UPDATE processing_jobs
+         SET progress = $1, updated_at = NOW()
+         WHERE video_id = $2"
+    )
+    .bind(progress)
+    .bind(video_id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_video_filename(
+    pool: &PgPool,
+    video_id: Uuid,
+) -> Result<String, sqlx::Error> {
+    let row: (String,) = sqlx::query_as(
+        "SELECT filename FROM videos WHERE id = $1"
+    )
+    .bind(video_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(row.0)
+}

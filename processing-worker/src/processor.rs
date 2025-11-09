@@ -70,27 +70,28 @@ impl VideoProcessor {
         fs::create_dir_all(&input_dir).await?;
         fs::create_dir_all(&output_dir).await?;
 
-        // Download raw video from MinIO
-        let raw_object_key = format!("raw/{}", video_id);
+        // Get the original filename from the database
+        let filename = db::get_video_filename(&self.db_pool, video_id).await?;
+        tracing::info!("Retrieved filename from database: {}", filename);
 
-        // Find the actual file in the raw directory
-        // For simplicity, assume the file exists with a known pattern
-        // In production, you'd query the database for the actual filename
+        // Download raw video from MinIO
+        let object_key = format!("raw/{}/{}", video_id, filename);
         let input_file = input_dir.join("input.mp4");
 
         tracing::info!("Downloading video from MinIO...");
-        // Note: We need to know the exact object key including filename
-        // This should be stored in the database
-        let object_key = format!("raw/{}/video.mp4", video_id); // Simplified
-
-        // For now, let's construct a more realistic path
-        // We'll need to query the DB for the actual filename
         self.storage.download_video(&object_key, &input_file).await?;
 
         // Transcode video to HLS
         tracing::info!("Transcoding video to HLS...");
+
+        // Update progress to 10% (download complete, starting transcode)
+        db::update_job_progress(&self.db_pool, video_id, 10).await.ok();
+
         let profiles = TranscodeProfile::profiles();
         self.transcoder.transcode_to_hls(&input_file, &output_dir, &profiles).await?;
+
+        // Update progress to 80% (transcoding complete, starting upload)
+        db::update_job_progress(&self.db_pool, video_id, 80).await.ok();
 
         // Upload all HLS files to MinIO
         tracing::info!("Uploading HLS files to MinIO...");
