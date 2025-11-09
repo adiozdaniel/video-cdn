@@ -1,17 +1,14 @@
-#!/bin/sh
-# Wait for MinIO to be ready
-sleep 5
+#!/bin/bash
+# Setup MinIO bucket permissions for HLS streaming
 
-# Install mc (MinIO client) if not present
-if ! command -v mc &> /dev/null; then
-    wget https://dl.min.io/client/mc/release/linux-amd64/mc -O /usr/local/bin/mc
-    chmod +x /usr/local/bin/mc
-fi
+echo "Configuring MinIO bucket permissions..."
 
-# Configure mc alias
-mc alias set myminio http://minio:9000 minioadmin minioadmin123
+docker exec cdn-minio sh -c '
+# Configure MC alias
+mc alias set myminio http://localhost:9000 minioadmin minioadmin123
 
-# Set CORS policy for the bucket
-mc anonymous set-json /tmp/cors-policy.json myminio/videos
+# Set public download access for HLS files
+mc anonymous set download myminio/videos/hls
 
-echo "MinIO CORS configured successfully"
+echo "✅ MinIO bucket permissions configured successfully"
+'
