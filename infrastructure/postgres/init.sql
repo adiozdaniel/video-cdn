@@ -115,7 +115,7 @@ CREATE INDEX idx_worker_health ON worker_health(last_heartbeat DESC);
 
 -- Phase 3: Video profile jobs tracking (specialized workers)
 CREATE TABLE video_profile_jobs (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
     profile VARCHAR(10) NOT NULL, -- 480p, 720p, 1080p, 360p, 240p
     status VARCHAR(20) NOT NULL DEFAULT 'QUEUED', -- QUEUED, PROCESSING, COMPLETED, FAILED
