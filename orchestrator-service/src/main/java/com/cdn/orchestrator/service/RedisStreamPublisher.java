@@ -4,7 +4,7 @@ import com.cdn.orchestrator.dto.ProfileJobMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.connection.stream.ObjectRecord;
+import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.StreamRecords;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -25,11 +25,8 @@ public class RedisStreamPublisher {
             @SuppressWarnings("unchecked")
             Map<String, Object> jobMap = objectMapper.convertValue(job, Map.class);
 
-            ObjectRecord<String, Object> record = StreamRecords
-                .objectBacked(jobMap)
-                .withStreamKey(streamName);
-
-            redisTemplate.opsForStream().add(record);
+            // Publish to stream
+            redisTemplate.opsForStream().add(streamName, jobMap);
 
             log.info("Published {} job to {}: videoId={}",
                 job.getProfile(), streamName, job.getVideoId());
