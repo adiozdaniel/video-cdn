@@ -24,16 +24,29 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka-1:9092}
+    consumer:
+      group-id: orchestrator-group
+      auto-offset-reset: earliest
+      enable-auto-commit: true
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+    listener:
+      concurrency: 3
+
   data:
     redis:
-      host: ${REDIS_HOST:redis}
-      port: ${REDIS_PORT:6379}
+      host: ${SPRING_REDIS_HOST:redis}
+      port: ${SPRING_REDIS_PORT:6379}
       timeout: 60000ms
-      lettuce:
-        pool:
-          max-active: 8
-          max-idle: 8
-          min-idle: 2
 
 # MinIO Configuration
 minio:
@@ -49,15 +62,15 @@ orchestrator:
   consumer-group: orchestrator-group
   consumer-name: ${HOSTNAME:orchestrator-1}
 
-  # Redis Stream names
+  # Phase 4: Chunking configuration
+  chunking:
+    enabled: true
+    threshold-seconds: 1800  # 30 minutes - videos longer than this will be chunked
+    chunk-size-seconds: 120  # 2 minutes per chunk
+
+  # Upload trigger stream (Redis)
   streams:
     trigger: processing-jobs
-    completed: processing-jobs-completed
-    profile-480p: processing-jobs-480p
-    profile-720p: processing-jobs-720p
-    profile-1080p: processing-jobs-1080p
-    profile-360p: processing-jobs-360p
-    profile-240p: processing-jobs-240p
 
 # Actuator Configuration
 management:
@@ -74,6 +87,7 @@ management:
 logging:
   level:
     com.cdn.orchestrator: INFO
-    org.springframework.data.redis: DEBUG
+    org.springframework.kafka: INFO
+    org.apache.kafka: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
