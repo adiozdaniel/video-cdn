@@ -81,14 +81,32 @@ impl VideoProcessor {
         tracing::info!("Downloading video from MinIO...");
         self.storage.download_video(&object_key, &input_file).await?;
 
-        // Transcode video to HLS
-        tracing::info!("Transcoding video to HLS...");
+        // Probe video to get metadata
+        let video_info = self.transcoder.get_video_info(&input_file).await?;
+
+        tracing::info!(
+            "Source video: {}x{} resolution, {:.1}s duration",
+            video_info.width, video_info.height, video_info.duration
+        );
 
         // Update progress to 10% (download complete, starting transcode)
         db::update_job_progress(&self.db_pool, video_id, 10).await.ok();
 
-        let profiles = TranscodeProfile::profiles();
-        self.transcoder.transcode_to_hls(&input_file, &output_dir, &profiles).await?;
+        // Select profiles adaptively - don't upscale
+        let all_profiles = TranscodeProfile::profiles();
+        let profiles: Vec<_> = all_profiles.into_iter()
+            .filter(|p| p.height <= video_info.height)
+            .collect();
+
+        if profiles.is_empty() {
+            anyhow::bail!("Source video resolution too low - minimum 240p required");
+        }
+
+        tracing::info!("Selected {} transcode profiles based on source resolution", profiles.len());
+
+        // Transcode video to HLS
+        tracing::info!("Transcoding video to HLS...");
+        self.transcoder.transcode_to_hls(&input_file, &output_dir, &profiles, &video_info).await?;
 
         // Update progress to 80% (transcoding complete, starting upload)
         db::update_job_progress(&self.db_pool, video_id, 80).await.ok();
