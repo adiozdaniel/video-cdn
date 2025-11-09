@@ -104,16 +104,82 @@ impl VideoProcessor {
 
         tracing::info!("Selected {} transcode profiles based on source resolution", profiles.len());
 
-        // Transcode video to HLS
-        tracing::info!("Transcoding video to HLS...");
-        self.transcoder.transcode_to_hls(&input_file, &output_dir, &profiles, &video_info).await?;
+        // **PHASE 2: TIERED PROCESSING**
+        // Generate 480p first for instant playback, then continue with other qualities
 
-        // Update progress to 80% (transcoding complete, starting upload)
-        db::update_job_progress(&self.db_pool, video_id, 80).await.ok();
+        // Separate 480p from other profiles
+        let (profile_480p, other_profiles): (Vec<_>, Vec<_>) = profiles.into_iter()
+            .partition(|p| p.height == 480);
 
-        // Upload all HLS files to MinIO
-        tracing::info!("Uploading HLS files to MinIO...");
-        self.upload_hls_files(&output_dir, video_id).await?;
+        // STEP 1: Generate 480p first with ultrafast preset
+        if !profile_480p.is_empty() {
+            tracing::info!("🚀 PHASE 2: Generating 480p first for instant playback...");
+
+            // Always use ultrafast for initial 480p
+            self.transcoder.transcode_single_profile(
+                &input_file,
+                &output_dir,
+                &profile_480p[0],
+                "ultrafast"
+            ).await?;
+
+            // Update progress to 30% (480p complete)
+            db::update_job_progress(&self.db_pool, video_id, 30).await.ok();
+
+            // Upload 480p files to MinIO
+            tracing::info!("📤 Uploading 480p files to MinIO...");
+            self.upload_hls_files(&output_dir, video_id).await?;
+
+            // Generate a basic master playlist with just 480p
+            self.transcoder.generate_master_playlist_public(&output_dir, &profile_480p).await?;
+
+            // Upload master playlist
+            let master_playlist_path = output_dir.join("master.m3u8");
+            let master_object_key = format!("hls/{}/master.m3u8", video_id);
+            self.storage.upload_video(
+                &master_playlist_path,
+                &master_object_key,
+                "application/vnd.apple.mpegurl"
+            ).await?;
+
+            // Mark video as PLAYABLE - user can start watching!
+            tracing::info!("✅ Video is now PLAYABLE with 480p quality!");
+            db::mark_video_playable(&self.db_pool, video_id).await?;
+
+            // Update progress to 40% (480p uploaded, video playable)
+            db::update_job_progress(&self.db_pool, video_id, 40).await.ok();
+        }
+
+        // STEP 2: Continue with remaining qualities in background
+        if !other_profiles.is_empty() {
+            tracing::info!("🔄 Continuing with {} additional quality profiles...", other_profiles.len());
+
+            self.transcoder.transcode_to_hls(&input_file, &output_dir, &other_profiles, &video_info).await?;
+
+            // Update progress to 80% (all transcoding complete, uploading remaining)
+            db::update_job_progress(&self.db_pool, video_id, 80).await.ok();
+
+            // Upload remaining HLS files to MinIO
+            tracing::info!("📤 Uploading remaining quality files to MinIO...");
+            self.upload_hls_files(&output_dir, video_id).await?;
+        }
+
+        // STEP 3: Generate final master playlist with all qualities
+        tracing::info!("📝 Generating final master playlist with all qualities...");
+        let all_generated_profiles: Vec<_> = profile_480p.into_iter()
+            .chain(other_profiles.into_iter())
+            .collect();
+
+        self.transcoder.generate_master_playlist_public(&output_dir, &all_generated_profiles).await?;
+
+        // Upload final master playlist
+        let master_playlist_path = output_dir.join("master.m3u8");
+        let master_object_key = format!("hls/{}/master.m3u8", video_id);
+        self.storage.upload_video(
+            &master_playlist_path,
+            &master_object_key,
+            "application/vnd.apple.mpegurl"
+        ).await?;
 
         // Clean up temporary files
         tracing::info!("Cleaning up temporary files...");

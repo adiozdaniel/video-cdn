@@ -74,6 +74,22 @@ pub async fn mark_job_failed(
     Ok(())
 }
 
+pub async fn mark_video_playable(
+    pool: &PgPool,
+    video_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    query(
+        "UPDATE videos
+         SET status = 'PLAYABLE'
+         WHERE id = $1"
+    )
+    .bind(video_id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
 pub async fn mark_job_completed(
     pool: &PgPool,
     video_id: Uuid,

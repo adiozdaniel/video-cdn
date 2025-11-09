@@ -77,6 +77,23 @@ impl Transcoder {
         Ok(())
     }
 
+    /// Transcode a single profile (public wrapper for Phase 2)
+    pub async fn transcode_single_profile(
+        &self,
+        input_path: &Path,
+        output_dir: &Path,
+        profile: &TranscodeProfile,
+        preset: &str,
+    ) -> Result<(), anyhow::Error> {
+        Self::transcode_profile(
+            &self.ffmpeg_path,
+            input_path,
+            output_dir,
+            profile,
+            preset,
+        ).await
+    }
+
     /// Transcode a single profile
     async fn transcode_profile(
         ffmpeg_path: &str,
@@ -132,6 +149,15 @@ impl Transcoder {
 
         tracing::info!("Completed {} profile", profile.name);
         Ok(())
+    }
+
+    /// Generate master HLS playlist (public for Phase 2)
+    pub async fn generate_master_playlist_public(
+        &self,
+        output_dir: &Path,
+        profiles: &[TranscodeProfile],
+    ) -> Result<(), anyhow::Error> {
+        self.generate_master_playlist(output_dir, profiles).await
     }
 
     /// Generate master HLS playlist
