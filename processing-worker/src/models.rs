@@ -55,6 +55,20 @@ impl TranscodeProfile {
                 bitrate: "1500k".to_string(),
                 audio_bitrate: "96k".to_string(),
             },
+            TranscodeProfile {
+                name: "360p".to_string(),
+                width: 640,
+                height: 360,
+                bitrate: "800k".to_string(),
+                audio_bitrate: "96k".to_string(),
+            },
+            TranscodeProfile {
+                name: "240p".to_string(),
+                width: 426,
+                height: 240,
+                bitrate: "400k".to_string(),
+                audio_bitrate: "64k".to_string(),
+            },
         ]
     }
 }
