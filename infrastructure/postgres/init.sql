@@ -16,7 +16,7 @@ CREATE TABLE videos (
     processed_at TIMESTAMP,
     deleted_at TIMESTAMP,
     metadata JSONB, -- Additional metadata (resolution, codec, etc.)
-    CONSTRAINT status_check CHECK (status IN ('UPLOADING', 'UPLOADED', 'QUEUED', 'PROCESSING', 'READY', 'FAILED', 'DELETED'))
+    CONSTRAINT status_check CHECK (status IN ('UPLOADING', 'UPLOADED', 'QUEUED', 'PROCESSING', 'PLAYABLE', 'READY', 'FAILED', 'DELETED'))
 );
 
 -- Index for listing queries (most common)
