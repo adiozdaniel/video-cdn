@@ -101,6 +101,48 @@ services:
       start_period: 60s
 
   # ==========================================
+  # ORCHESTRATOR SERVICE - Java/Spring Boot (Phase 3)
+  # ==========================================
+  orchestrator:
+    build:
+      context: .
+      dockerfile: orchestrator-service/Dockerfile
+    container_name: cdn-orchestrator
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/cdn
+      - SPRING_DATASOURCE_USERNAME=cdn_app
+      - SPRING_DATASOURCE_PASSWORD=cdn_password_2024
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - MINIO_BUCKET=videos
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==========================================
   # CDN EDGE - Nginx (Content Delivery)
   # ==========================================
   nginx-edge:
