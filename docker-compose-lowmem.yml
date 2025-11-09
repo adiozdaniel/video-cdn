@@ -1,0 +1,408 @@
+# LOW MEMORY CONFIGURATION - For systems with limited RAM (< 8GB)
+# Minimal viable setup: 240p + 360p workers, 1 Kafka, 1 ZooKeeper
+
+services:
+  # Core Services
+  haproxy:
+    image: haproxy:2.9-alpine
+    container_name: cdn-haproxy
+    ports:
+      - "80:80"
+      - "8404:8404"
+    volumes:
+      - ./infrastructure/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      upload-service:
+        condition: service_healthy
+      video-service:
+        condition: service_healthy
+      nginx-edge:
+        condition: service_healthy
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8404/stats"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  upload-service:
+    build:
+      context: .
+      dockerfile: upload-service/Dockerfile
+    container_name: cdn-upload-service
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=cdn_app
+      - DB_PASSWORD=cdn_password_2024
+      - DB_NAME=cdn
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_PUBLIC_ENDPOINT=localhost:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "upload_service"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  video-service:
+    build:
+      context: .
+      dockerfile: video-service/Dockerfile
+    container_name: cdn-video-service
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=cdn_app
+      - DB_PASSWORD=cdn_password_2024
+      - DB_NAME=cdn
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: orchestrator-service/Dockerfile
+    container_name: cdn-orchestrator
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/cdn
+      - SPRING_DATASOURCE_USERNAME=cdn_app
+      - SPRING_DATASOURCE_PASSWORD=cdn_password_2024
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka-1:9092
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - MINIO_BUCKET=videos
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 768M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx-edge:
+    image: nginx:1.25-alpine
+    container_name: cdn-nginx-edge
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/cache:/data/nginx/cache
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Processing Workers - ONLY 240p and 360p for low memory
+  worker-240p:
+    build:
+      context: .
+      dockerfile: processing-worker/Dockerfile
+    container_name: cdn-worker-240p
+    environment:
+      - WORKER_ID=worker-240p
+      - PROFILE=240p
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=cdn_app
+      - DB_PASSWORD=cdn_password_2024
+      - DB_NAME=cdn
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - KAFKA_BROKERS=kafka-1:9092
+      - KAFKA_GROUP_ID=processing-workers
+      - WORKER_CONCURRENCY=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "processing_worker"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  worker-360p:
+    build:
+      context: .
+      dockerfile: processing-worker/Dockerfile
+    container_name: cdn-worker-360p
+    environment:
+      - WORKER_ID=worker-360p
+      - PROFILE=360p
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=cdn_app
+      - DB_PASSWORD=cdn_password_2024
+      - DB_NAME=cdn
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - KAFKA_BROKERS=kafka-1:9092
+      - KAFKA_GROUP_ID=processing-workers
+      - WORKER_CONCURRENCY=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "processing_worker"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Infrastructure
+  postgres:
+    image: postgres:16-alpine
+    container_name: cdn-postgres
+    environment:
+      - POSTGRES_DB=cdn
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres_admin_2024
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    command: >
+      postgres
+      -c max_connections=100
+      -c shared_buffers=256MB
+      -c effective_cache_size=768MB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=8MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=2621kB
+      -c min_wal_size=512MB
+      -c max_wal_size=2GB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cdn"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  minio:
+    image: minio/minio:latest
+    container_name: cdn-minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin123
+      - MINIO_API_CORS_ALLOW_ORIGIN=*
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: cdn-redis
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Single ZooKeeper node
+  zookeeper-1:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: cdn-zookeeper-1
+    environment:
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-1-data:/var/lib/zookeeper/data
+      - zookeeper-1-log:/var/lib/zookeeper/log
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Single Kafka broker
+  kafka-1:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: cdn-kafka-1
+    depends_on:
+      zookeeper-1:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-1:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_LOG_RETENTION_HOURS: 168
+    volumes:
+      - kafka-1-data:/var/lib/kafka/data
+    networks:
+      - cdn-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+networks:
+  cdn-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  minio-data:
+  redis-data:
+  zookeeper-1-data:
+  zookeeper-1-log:
+  kafka-1-data:
