@@ -113,6 +113,25 @@ CREATE TABLE worker_health (
 
 CREATE INDEX idx_worker_health ON worker_health(last_heartbeat DESC);
 
+-- Phase 3: Video profile jobs tracking (specialized workers)
+CREATE TABLE video_profile_jobs (
+    id SERIAL PRIMARY KEY,
+    video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    profile VARCHAR(10) NOT NULL, -- 480p, 720p, 1080p, 360p, 240p
+    status VARCHAR(20) NOT NULL DEFAULT 'QUEUED', -- QUEUED, PROCESSING, COMPLETED, FAILED
+    worker_id VARCHAR(50),
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    duration_ms INTEGER,
+    files_count INTEGER,
+    error_message TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE(video_id, profile)
+);
+
+CREATE INDEX idx_profile_jobs_video ON video_profile_jobs(video_id);
+CREATE INDEX idx_profile_jobs_status ON video_profile_jobs(status) WHERE status IN ('QUEUED', 'PROCESSING');
+
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
