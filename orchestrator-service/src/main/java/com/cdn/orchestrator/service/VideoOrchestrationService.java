@@ -94,14 +94,14 @@ public class VideoOrchestrationService {
             profileJobRepository.save(job);
         }
 
-        // Publish 480p FIRST (high priority)
-        if (profiles.contains("480p")) {
-            publishJob("480p", videoId, filename, "ultrafast");
+        // Publish 240p FIRST (high priority - fastest to complete)
+        if (profiles.contains("240p")) {
+            publishJob("240p", videoId, filename, "ultrafast");
         }
 
         // Publish other profiles
         for (String profile : profiles) {
-            if (!profile.equals("480p")) {
+            if (!profile.equals("240p")) {
                 publishJob(profile, videoId, filename, preset);
             }
         }
@@ -127,16 +127,16 @@ public class VideoOrchestrationService {
             }
         }
 
-        // Publish 480p chunks FIRST (high priority for fast PLAYABLE state)
-        if (profiles.contains("480p")) {
+        // Publish 240p chunks FIRST (high priority - fastest to complete for PLAYABLE state)
+        if (profiles.contains("240p")) {
             for (VideoChunk chunk : chunks) {
-                publishChunkJob("480p", videoId, filename, "ultrafast", chunk);
+                publishChunkJob("240p", videoId, filename, "ultrafast", chunk);
             }
         }
 
         // Publish other profile chunks
         for (String profile : profiles) {
-            if (!profile.equals("480p")) {
+            if (!profile.equals("240p")) {
                 for (VideoChunk chunk : chunks) {
                     publishChunkJob(profile, videoId, filename, preset, chunk);
                 }
