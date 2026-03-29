@@ -3,6 +3,8 @@ package com.cdn.orchestrator.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -19,42 +21,28 @@ public class ChunkReassemblyService {
     /**
      * Reassemble chunks into final HLS playlist for a given profile.
      * This creates a master playlist that references all chunk playlists.
-     *
-     * Note: For Phase 4 initial implementation, we're creating a master playlist
-     * that references chunk playlists. Future optimization: use FFmpeg concat
-     * to merge into single playlist.
-     *
-     * @param videoId Video UUID
-     * @param profile Profile (480p, 720p, etc.)
-     * @param totalChunks Total number of chunks
      */
-    public void reassembleChunks(UUID videoId, String profile, int totalChunks) throws Exception {
+    public Mono<Void> reassembleChunks(UUID videoId, String profile, int totalChunks) {
         log.info("Reassembling {} chunks for video {} profile {}", totalChunks, videoId, profile);
 
         if (totalChunks == 1) {
             log.info("Single chunk (whole video), no reassembly needed");
-            return;
+            return Mono.empty();
         }
 
-        // Create temporary concat file for FFmpeg
-        File concatFile = createConcatFile(videoId, profile, totalChunks);
-
-        try {
-            // For now, we'll create a master playlist that references chunk playlists
-            // Future: Use FFmpeg concat to merge into single playlist
-            String masterPlaylistContent = generateMasterPlaylistForChunks(videoId, profile, totalChunks);
-
-            // Upload final playlist
-            minioService.uploadProfilePlaylist(videoId, profile, masterPlaylistContent);
-
-            log.info("Successfully reassembled {} chunks for {} {}", totalChunks, videoId, profile);
-
-        } finally {
-            // Clean up temp file
-            if (concatFile != null && concatFile.exists()) {
-                concatFile.delete();
-            }
-        }
+        return Mono.fromCallable(() -> createConcatFile(videoId, profile, totalChunks))
+            .subscribeOn(Schedulers.boundedElastic())
+            .flatMap(concatFile -> {
+                String masterPlaylistContent = generateMasterPlaylistForChunks(videoId, profile, totalChunks);
+                return minioService.uploadProfilePlaylist(videoId, profile, masterPlaylistContent)
+                    .doFinally(signalType -> {
+                        if (concatFile.exists()) {
+                            concatFile.delete();
+                        }
+                    });
+            })
+            .doOnSuccess(v -> log.info("Successfully reassembled {} chunks for {} {}", totalChunks, videoId, profile))
+            .then();
     }
 
     /**
@@ -74,20 +62,16 @@ public class ChunkReassemblyService {
 
     /**
      * Generate master playlist that references all chunk playlists
-     * This is a simplified approach for Phase 4 initial implementation
      */
     private String generateMasterPlaylistForChunks(UUID videoId, String profile, int totalChunks) {
         StringBuilder playlist = new StringBuilder();
 
-        // For HLS, we create a playlist that lists all chunk playlists in sequence
-        // The player will play them consecutively
         playlist.append("#EXTM3U\n");
         playlist.append("#EXT-X-VERSION:3\n");
         playlist.append("#EXT-X-TARGETDURATION:4\n");
         playlist.append("#EXT-X-MEDIA-SEQUENCE:0\n\n");
 
         for (int i = 0; i < totalChunks; i++) {
-            // Reference each chunk's playlist
             playlist.append(String.format("# Chunk %d\n", i));
             playlist.append(String.format("%s_chunk%d.m3u8\n", profile, i));
         }
@@ -95,15 +79,5 @@ public class ChunkReassemblyService {
         playlist.append("#EXT-X-ENDLIST\n");
 
         return playlist.toString();
-    }
-
-    /**
-     * Clean up chunk files from MinIO after successful reassembly
-     * (For future implementation)
-     */
-    public void cleanupChunkFiles(UUID videoId, String profile, int totalChunks) {
-        log.info("Cleaning up chunk files for {} {} (total: {})", videoId, profile, totalChunks);
-        // TODO: Implement MinIO cleanup of chunk files
-        // For now, we keep them as they're referenced in the master playlist
     }
 }
