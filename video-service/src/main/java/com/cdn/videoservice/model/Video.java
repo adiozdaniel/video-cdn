@@ -1,34 +1,32 @@
 package com.cdn.videoservice.model;
 
-import jakarta.persistence.*;
 import lombok.Data;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
-@Entity
-@Table(name = "videos")
+@Table("videos")
 public class Video {
 
     @Id
-    @Column(columnDefinition = "uuid")
     private UUID id;
 
-    @Column(nullable = false)
     private String filename;
 
-    @Column(nullable = false)
     private Long size;
 
-    @Column(nullable = false, length = 50)
     private String status;
 
-    @Column(name = "created_at", nullable = false)
+    @Column("created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "uploaded_at")
+    @Column("uploaded_at")
     private LocalDateTime uploadedAt;
 
-    @Column(name = "deleted_at")
+    @Column("deleted_at")
     private LocalDateTime deletedAt;
 }
