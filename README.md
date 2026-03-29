@@ -67,6 +67,18 @@ docker-compose logs -f worker-1
 - **Video Delivery**: `http://localhost/videos/{videoId}/master.m3u8`
 - **Front End**: `https://github.com/adiozdaniel/video-streamer`
 
+## 🎨 Frontend
+
+**Video Streamer Frontend:** [https://github.com/adiozdaniel/video-streamer](https://github.com/adiozdaniel/video-streamer)
+
+The frontend application provides a modern and responsive interface for:
+
+- Video catalog browsing and search
+- Video playback with DRM support
+- User authentication and profiles
+- Content management interface
+- Admin dashboard for content moderation
+
 ### 3. Upload a Video
 
 ```bash
