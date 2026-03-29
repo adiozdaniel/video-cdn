@@ -28,7 +28,7 @@ impl VideoProcessor {
         }
     }
 
-    /// Phase 3/4: Process a single profile job (with optional chunk support)
+    /// Process a single profile job (with optional chunk support)
     pub async fn process_profile_job(
         &self,
         job: &ProfileJobMessage,
@@ -183,7 +183,7 @@ impl VideoProcessor {
                     .and_then(|n| n.to_str())
                     .ok_or_else(|| anyhow::anyhow!("Invalid filename"))?;
 
-                // Phase 4: Use output_path from job message
+                // Use output_path from job message
                 let object_key = format!("{}{}", job.output_path, filename);
 
                 let content_type = if filename.ends_with(".m3u8") {

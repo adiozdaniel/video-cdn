@@ -12,7 +12,7 @@ pub struct ProcessingJob {
     pub timestamp: i64,
 }
 
-/// Phase 3/4: Profile-specific job message from orchestrator
+/// Profile-specific job message from orchestrator
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProfileJobMessage {
     #[serde(rename = "videoId")]
@@ -26,7 +26,7 @@ pub struct ProfileJobMessage {
     pub priority: Option<String>,
     pub timestamp: Option<i64>,
 
-    // Phase 4: Optional chunk fields (null = whole video)
+    // Optional chunk fields (null = whole video)
     #[serde(rename = "chunkId")]
     pub chunk_id: Option<i32>,
     #[serde(rename = "startTime")]
@@ -35,7 +35,7 @@ pub struct ProfileJobMessage {
     pub end_time: Option<f64>,
 }
 
-/// Phase 3/4: Completion event to send back to orchestrator
+/// Completion event to send back to orchestrator
 #[derive(Debug, Serialize)]
 pub struct CompletionEvent {
     #[serde(rename = "videoId")]
@@ -51,7 +51,7 @@ pub struct CompletionEvent {
     #[serde(rename = "filesUploaded")]
     pub files_uploaded: Option<i32>,
 
-    // Phase 4: Optional chunk support
+    // Optional chunk support
     #[serde(rename = "chunkId")]
     pub chunk_id: Option<i32>,
 

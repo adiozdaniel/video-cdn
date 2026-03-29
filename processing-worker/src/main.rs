@@ -23,7 +23,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    tracing::info!("🚀 Starting Phase 3/4 processing worker...");
+    tracing::info!("🚀 Starting processing worker...");
 
     // Load configuration
     let config = Config::from_env()?;
@@ -41,7 +41,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let queue = JobQueue::new(&config.kafka_brokers, &config.kafka_group_id, &config.profile).await?;
     tracing::info!("Kafka consumer ready for profile: {}", config.profile);
 
-    // Create video processor (Phase 3/4: single profile processing)
+    // Create video processor (single profile processing)
     let processor = VideoProcessor::new(config.clone(), storage);
 
     tracing::info!("✅ Worker ready! Waiting for {} profile jobs from Kafka", config.profile);

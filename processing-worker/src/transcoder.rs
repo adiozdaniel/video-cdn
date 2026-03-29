@@ -77,7 +77,7 @@ impl Transcoder {
         Ok(())
     }
 
-    /// Transcode a single profile (Phase 3/4: supports optional chunk time range)
+    /// Transcode a single profile (supports optional chunk time range)
     pub async fn transcode_single_profile(
         &self,
         input_path: &Path,
@@ -100,7 +100,7 @@ impl Transcoder {
         ).await
     }
 
-    /// Transcode a single profile (Phase 3/4: with optional chunk support)
+    /// Transcode a single profile (with optional chunk support)
     async fn transcode_profile(
         ffmpeg_path: &str,
         input_path: &Path,
@@ -111,7 +111,7 @@ impl Transcoder {
         start_time: Option<f64>,
         end_time: Option<f64>,
     ) -> Result<(), anyhow::Error> {
-        // Phase 4: Adjust output filenames for chunks
+        // Adjust output filenames for chunks
         let (output_file, segment_pattern) = if let Some(chunk) = chunk_id {
             let output_file = output_dir.join(format!("{}_chunk{}.m3u8", profile.name, chunk));
             let segment_pattern = output_dir.join(format!("{}_chunk{}_%03d.ts", profile.name, chunk));
@@ -140,7 +140,7 @@ impl Transcoder {
             _ => "26",               // 360p/240p: Lower quality is acceptable
         };
 
-        // Phase 4: Build FFmpeg args with optional chunk time range
+        // Build FFmpeg args with optional chunk time range
         let mut ffmpeg_args: Vec<String> = Vec::new();
 
         // Add chunk time range if specified (must come BEFORE -i)
@@ -214,7 +214,7 @@ impl Transcoder {
         Ok(())
     }
 
-    /// Generate master HLS playlist (public for Phase 2)
+    /// Generate master HLS playlist
     pub async fn generate_master_playlist_public(
         &self,
         output_dir: &Path,
