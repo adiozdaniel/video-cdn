@@ -1,12 +1,11 @@
 package com.cdn.orchestrator.service;
 
-import com.cdn.orchestrator.model.VideoProfileJob;
 import com.cdn.orchestrator.repository.VideoProfileJobRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -24,57 +23,36 @@ public class PlaylistGeneratorService {
     private static final int DEFAULT_BANDWIDTH_240P = 400000;
 
     /**
-     * Generate basic master playlist with first completed profile (for PLAYABLE state)
+     * Generate full master playlist with all completed profiles (for READY/PLAYABLE state)
      */
-    public void generateBasicPlaylist(UUID videoId) throws Exception {
-        log.info("Generating basic master playlist for video: {}", videoId);
+    public Mono<Void> generateFullPlaylist(UUID videoId) {
+        log.info("Generating master playlist for video: {}", videoId);
 
-        List<VideoProfileJob> jobs = profileJobRepository.findByVideoId(videoId);
+        return profileJobRepository.findByVideoId(videoId)
+            .filter(job -> "COMPLETED".equals(job.getStatus()))
+            .collectList()
+            .flatMap(completedJobs -> {
+                if (completedJobs.isEmpty()) {
+                    return Mono.empty();
+                }
 
-        // Find first completed profile
-        VideoProfileJob firstCompleted = jobs.stream()
-            .filter(j -> "COMPLETED".equals(j.getStatus()))
-            .findFirst()
-            .orElseThrow(() -> new RuntimeException("No completed profiles found for PLAYABLE video"));
+                StringBuilder playlist = new StringBuilder("#EXTM3U\n#EXT-X-VERSION:3\n\n");
 
-        String profile = firstCompleted.getProfile();
-        int bandwidth = getBandwidth(profile);
-        String resolution = getResolution(profile);
+                for (var job : completedJobs) {
+                    String profile = job.getProfile();
+                    int bandwidth = getBandwidth(profile);
+                    String resolution = getResolution(profile);
 
-        String playlist = "#EXTM3U\n#EXT-X-VERSION:3\n\n";
-        playlist += "#EXT-X-STREAM-INF:BANDWIDTH=" + bandwidth + ",RESOLUTION=" + resolution + "\n";
-        playlist += profile + ".m3u8\n";
+                    playlist.append("#EXT-X-STREAM-INF:BANDWIDTH=")
+                        .append(bandwidth)
+                        .append(",RESOLUTION=")
+                        .append(resolution)
+                        .append("\n");
+                    playlist.append(profile).append(".m3u8\n\n");
+                }
 
-        minioService.uploadMasterPlaylist(videoId, playlist);
-        log.info("Generated basic playlist with first completed profile: {}", profile);
-    }
-
-    /**
-     * Generate full master playlist with all completed profiles (for READY state)
-     */
-    public void generateFullPlaylist(UUID videoId) throws Exception {
-        log.info("Generating full master playlist for video: {}", videoId);
-
-        List<VideoProfileJob> jobs = profileJobRepository.findByVideoId(videoId);
-
-        StringBuilder playlist = new StringBuilder("#EXTM3U\n#EXT-X-VERSION:3\n\n");
-
-        for (VideoProfileJob job : jobs) {
-            if ("COMPLETED".equals(job.getStatus())) {
-                String profile = job.getProfile();
-                int bandwidth = getBandwidth(profile);
-                String resolution = getResolution(profile);
-
-                playlist.append("#EXT-X-STREAM-INF:BANDWIDTH=")
-                    .append(bandwidth)
-                    .append(",RESOLUTION=")
-                    .append(resolution)
-                    .append("\n");
-                playlist.append(profile).append(".m3u8\n\n");
-            }
-        }
-
-        minioService.uploadMasterPlaylist(videoId, playlist.toString());
+                return minioService.uploadMasterPlaylist(videoId, playlist.toString());
+            });
     }
 
     private int getBandwidth(String profile) {
