@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.io.File;
 import java.util.concurrent.TimeUnit;
@@ -15,54 +17,56 @@ public class VideoProbeService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public VideoMetadata probeVideo(File videoFile) throws Exception {
-        log.info("Probing video metadata for: {}", videoFile.getName());
+    public Mono<VideoMetadata> probeVideo(File videoFile) {
+        return Mono.fromCallable(() -> {
+            log.info("Probing video metadata for: {}", videoFile.getName());
 
-        // Build ffprobe command
-        ProcessBuilder pb = new ProcessBuilder(
-            "ffprobe",
-            "-v", "error",
-            "-show_entries", "format=duration,size",
-            "-show_entries", "stream=width,height,codec_name,codec_type",
-            "-of", "json",
-            videoFile.getAbsolutePath()
-        );
+            // Build ffprobe command
+            ProcessBuilder pb = new ProcessBuilder(
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration,size",
+                "-show_entries", "stream=width,height,codec_name,codec_type",
+                "-of", "json",
+                videoFile.getAbsolutePath()
+            );
 
-        Process process = pb.start();
-        boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            Process process = pb.start();
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
 
-        if (!completed) {
-            process.destroyForcibly();
-            throw new RuntimeException("FFprobe timed out");
-        }
-
-        if (process.exitValue() != 0) {
-            throw new RuntimeException("FFprobe failed with exit code: " + process.exitValue());
-        }
-
-        // Parse JSON output
-        JsonNode root = objectMapper.readTree(process.getInputStream());
-
-        // Extract video stream
-        JsonNode streams = root.get("streams");
-        JsonNode videoStream = null;
-        for (JsonNode stream : streams) {
-            if ("video".equals(stream.get("codec_type").asText())) {
-                videoStream = stream;
-                break;
+            if (!completed) {
+                process.destroyForcibly();
+                throw new RuntimeException("FFprobe timed out");
             }
-        }
 
-        if (videoStream == null) {
-            throw new RuntimeException("No video stream found");
-        }
+            if (process.exitValue() != 0) {
+                throw new RuntimeException("FFprobe failed with exit code: " + process.exitValue());
+            }
 
-        int width = videoStream.get("width").asInt();
-        int height = videoStream.get("height").asInt();
-        double duration = root.get("format").get("duration").asDouble();
+            // Parse JSON output
+            JsonNode root = objectMapper.readTree(process.getInputStream());
 
-        log.info("Video metadata: {}x{}, {:.1f}s", width, height, duration);
+            // Extract video stream
+            JsonNode streams = root.get("streams");
+            JsonNode videoStream = null;
+            for (JsonNode stream : streams) {
+                if ("video".equals(stream.get("codec_type").asText())) {
+                    videoStream = stream;
+                    break;
+                }
+            }
 
-        return new VideoMetadata(width, height, duration);
+            if (videoStream == null) {
+                throw new RuntimeException("No video stream found");
+            }
+
+            int width = videoStream.get("width").asInt();
+            int height = videoStream.get("height").asInt();
+            double duration = root.get("format").get("duration").asDouble();
+
+            log.info("Video metadata: {}x{}, {:.1f}s", width, height, duration);
+
+            return new VideoMetadata(width, height, duration);
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 }
