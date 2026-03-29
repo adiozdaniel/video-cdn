@@ -5,25 +5,22 @@ spring:
   application:
     name: orchestrator-service
 
-  datasource:
-    url: jdbc:postgresql://${DATABASE_HOST:postgres}:5432/${DATABASE_NAME:cdn}
+  r2dbc:
+    url: r2dbc:postgresql://${DATABASE_HOST:postgres}:5432/${DATABASE_NAME:cdn}
     username: ${DATABASE_USER:cdn_app}
     password: ${DATABASE_PASSWORD:cdn_password_2024}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
-      connection-timeout: 30000
+    pool:
+      max-size: 10
+      initial-size: 2
+      max-idle-time: 30m
 
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:redis}
+      port: ${SPRING_REDIS_PORT:6379}
+      timeout: 60000ms
 
+# MinIO Configuration
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka-1:9092}
     consumer:
@@ -62,7 +59,7 @@ orchestrator:
   consumer-group: orchestrator-group
   consumer-name: ${HOSTNAME:orchestrator-1}
 
-  # Phase 4: Chunking configuration
+  # Chunking configuration
   chunking:
     enabled: true
     threshold-seconds: 1800  # 30 minutes - videos longer than this will be chunked
