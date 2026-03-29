@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -28,76 +30,82 @@ public class MinioService {
     /**
      * Download video file for probing
      */
-    public File downloadForProbing(UUID videoId, String filename) throws Exception {
-        String key = String.format("raw/%s/%s", videoId, filename);
+    public Mono<File> downloadForProbing(UUID videoId, String filename) {
+        return Mono.fromCallable(() -> {
+            String key = String.format("raw/%s/%s", videoId, filename);
+            log.info("Downloading video from MinIO for probing: {}", key);
 
-        log.info("Downloading video from MinIO for probing: {}", key);
+            GetObjectRequest request = GetObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .build();
 
-        GetObjectRequest request = GetObjectRequest.builder()
-            .bucket(bucket)
-            .key(key)
-            .build();
+            ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
 
-        ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
+            // Create temp file
+            File tempFile = File.createTempFile("video-probe-" + videoId, ".mp4");
+            tempFile.deleteOnExit();
 
-        // Create temp file
-        File tempFile = File.createTempFile("video-probe-" + videoId, ".mp4");
-        tempFile.deleteOnExit();
+            try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                response.transferTo(fos);
+            }
 
-        try (FileOutputStream fos = new FileOutputStream(tempFile)) {
-            response.transferTo(fos);
-        }
-
-        log.info("Downloaded {} bytes to {}", tempFile.length(), tempFile.getAbsolutePath());
-
-        return tempFile;
+            log.info("Downloaded {} bytes to {}", tempFile.length(), tempFile.getAbsolutePath());
+            return tempFile;
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 
     /**
      * Upload master playlist
      */
-    public void uploadMasterPlaylist(UUID videoId, String content) throws Exception {
-        String key = String.format("hls/%s/master.m3u8", videoId);
+    public Mono<Void> uploadMasterPlaylist(UUID videoId, String content) {
+        return Mono.<Void>fromRunnable(() -> {
+            try {
+                String key = String.format("hls/%s/master.m3u8", videoId);
+                log.info("Uploading master playlist: {}", key);
 
-        log.info("Uploading master playlist: {}", key);
+                File tempFile = File.createTempFile("master-" + videoId, ".m3u8");
+                Files.writeString(tempFile.toPath(), content);
 
-        File tempFile = File.createTempFile("master-" + videoId, ".m3u8");
-        Files.writeString(tempFile.toPath(), content);
+                PutObjectRequest request = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType("application/vnd.apple.mpegurl")
+                    .build();
 
-        PutObjectRequest request = PutObjectRequest.builder()
-            .bucket(bucket)
-            .key(key)
-            .contentType("application/vnd.apple.mpegurl")
-            .build();
-
-        s3Client.putObject(request, tempFile.toPath());
-
-        tempFile.delete();
-
-        log.info("Master playlist uploaded successfully");
+                s3Client.putObject(request, tempFile.toPath());
+                tempFile.delete();
+                log.info("Master playlist uploaded successfully");
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to upload master playlist", e);
+            }
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 
     /**
-     * Upload profile-specific playlist (Phase 4: for reassembled chunks)
+     * Upload profile-specific playlist (for reassembled chunks)
      */
-    public void uploadProfilePlaylist(UUID videoId, String profile, String content) throws Exception {
-        String key = String.format("hls/%s/%s.m3u8", videoId, profile);
+    public Mono<Void> uploadProfilePlaylist(UUID videoId, String profile, String content) {
+        return Mono.<Void>fromRunnable(() -> {
+            try {
+                String key = String.format("hls/%s/%s.m3u8", videoId, profile);
+                log.info("Uploading {} playlist: {}", profile, key);
 
-        log.info("Uploading {} playlist: {}", profile, key);
+                File tempFile = File.createTempFile(profile + "-" + videoId, ".m3u8");
+                Files.writeString(tempFile.toPath(), content);
 
-        File tempFile = File.createTempFile(profile + "-" + videoId, ".m3u8");
-        Files.writeString(tempFile.toPath(), content);
+                PutObjectRequest request = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType("application/vnd.apple.mpegurl")
+                    .build();
 
-        PutObjectRequest request = PutObjectRequest.builder()
-            .bucket(bucket)
-            .key(key)
-            .contentType("application/vnd.apple.mpegurl")
-            .build();
-
-        s3Client.putObject(request, tempFile.toPath());
-
-        tempFile.delete();
-
-        log.info("{} playlist uploaded successfully", profile);
+                s3Client.putObject(request, tempFile.toPath());
+                tempFile.delete();
+                log.info("{} playlist uploaded successfully", profile);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to upload profile playlist", e);
+            }
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 }
