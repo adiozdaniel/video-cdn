@@ -49,29 +49,22 @@ Default credentials: `minioadmin` / `minioadmin123`
 
 ## 🏗️ Architecture
 
-```txt
-┌─────────────────────────────────────────────────────────────────┐
-│                       HAProxy (L7 Router)                        │
-└────────────────────┬────────────────────────────────────────────┘
-                     │
-     ┌───────────────┼───────────────┐
-     │               │               │
-┌────▼─────┐  ┌─────▼──────┐  ┌────▼─────┐
-│   RUST   │  │    JAVA    │  │   CMS    │
-│ Services │  │  Services  │  │ Services │
-└────┬─────┘  └─────┬──────┘  └────┬─────┘
-     │               │               │
-     └───────────────┼───────────────┘
-                     │
-            ┌────────▼────────┐
-            │ Kafka (Events)  │
-            └────────┬────────┘
-                     │
-     ┌───────────────┼───────────────┬──────────────┐
-     │               │               │              │
-┌────▼─────┐  ┌─────▼──────┐  ┌────▼─────┐  ┌─────▼────────┐
-│PostgreSQL│  │   MinIO    │  │  Redis   │  │  ClickHouse  │
-└──────────┘  └────────────┘  └──────────┘  └──────────────┘
+```mermaid
+graph TD
+    HAProxy[HAProxy L7 Router]
+    
+    HAProxy --> Rust[Rust Services]
+    HAProxy --> Java[Java Services]
+    HAProxy --> CMS[CMS Services]
+    
+    Rust --- Kafka((Kafka Events))
+    Java --- Kafka
+    CMS --- Kafka
+    
+    Kafka --- Postgres[(PostgreSQL)]
+    Kafka --- MinIO[(MinIO)]
+    Kafka --- Redis[(Redis)]
+    Kafka --- ClickHouse[(ClickHouse)]
 ```
 
 **→ [View Complete Architecture Diagram](./ARCHITECTURE_DIAGRAM.md)** ← Detailed visual
@@ -144,20 +137,27 @@ Default credentials: `minioadmin` / `minioadmin123`
 
 ## 📦 Project Structure
 
-```txt
-cdn/
-├── upload-service/          # Rust - Upload handling
-├── processing-worker/       # Rust - Video transcoding
-├── streaming-service/       # Rust - Manifest generation
-├── video-service/          # Java - Video metadata API
-├── job-service/            # Java - Job orchestration
-├── analytics-service/      # Java - Analytics engine
-├── drm-service/            # CMS - DRM license server
-├── cms-service/            # CMS - Content management
-├── portal-service/         # CMS - User portal
-├── infrastructure/         # Config for HAProxy, Nginx, etc.
-├── scripts/               # Utility scripts
-└── docs/                  # Documentation
+```mermaid
+graph LR
+    Root[cdn/]
+    Root --> Rust[Rust Services]
+    Rust --> Upload[upload-service]
+    Rust --> Worker[processing-worker]
+    Rust --> Streaming[streaming-service]
+    
+    Root --> Java[Java Services]
+    Java --> Video[video-service]
+    Java --> Job[job-service]
+    Java --> Analytics[analytics-service]
+    
+    Root --> CMS[CMS Services]
+    CMS --> DRM[drm-service]
+    CMS --> CMS_Svc[cms-service]
+    CMS --> Portal[portal-service]
+    
+    Root --> Infra[infrastructure/]
+    Root --> Scripts[scripts/]
+    Root --> Docs[docs/]
 ```
 
 ## 🔐 Security Features

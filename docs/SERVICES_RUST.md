@@ -74,15 +74,17 @@ GET    /health                   - Health check
 
 ### Processing Pipeline
 
-```txt
-1. Download original video from MinIO
-2. Extract metadata (duration, resolution, codec)
-3. Generate thumbnails (3 frames)
-4. Transcode to 3 bitrates in parallel
-5. Generate HLS segments (.ts files)
-6. Create master playlist (.m3u8)
-7. Upload processed files to MinIO
-8. Update database status
+```mermaid
+graph TD
+    Start[Start Job] --> Download[1. Download from MinIO]
+    Download --> Metadata[2. Extract Metadata]
+    Metadata --> Thumbnails[3. Generate Thumbnails]
+    Thumbnails --> Transcode[4. Transcode 3 Bitrates in Parallel]
+    Transcode --> HLS[5. Generate HLS Segments]
+    HLS --> Master[6. Create Master Playlist]
+    Master --> Upload[7. Upload to MinIO]
+    Upload --> UpdateDB[8. Update Database Status]
+    UpdateDB --> End[End Job]
 ```
 
 ### Processing Events Published

@@ -31,29 +31,22 @@ This platform uses a **polyglot microservices architecture** where each service 
 
 ### Simplified View
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                       HAProxy (L7 Router)                        │
-└────────────────────┬────────────────────────────────────────────┘
-                     │
-     ┌───────────────┼───────────────┐
-     │               │               │
-┌────▼─────┐  ┌─────▼──────┐  ┌────▼─────┐
-│   RUST   │  │    JAVA    │  │   CMS    │
-│ Services │  │  Services  │  │ Services │
-└────┬─────┘  └─────┬──────┘  └────┬─────┘
-     │               │               │
-     └───────────────┼───────────────┘
-                     │
-            ┌────────▼────────┐
-            │ Kafka (Events)  │
-            └────────┬────────┘
-                     │
-     ┌───────────────┼───────────────┬──────────────┐
-     │               │               │              │
-┌────▼─────┐  ┌─────▼──────┐  ┌────▼─────┐  ┌─────▼────────┐
-│PostgreSQL│  │   MinIO    │  │  Redis   │  │  ClickHouse  │
-└──────────┘  └────────────┘  └──────────┘  └──────────────┘
+```mermaid
+graph TD
+    HAProxy[HAProxy L7 Router]
+    
+    HAProxy --> Rust[Rust Services]
+    HAProxy --> Java[Java Services]
+    HAProxy --> CMS[CMS Services]
+    
+    Rust --- Kafka((Kafka Events))
+    Java --- Kafka
+    CMS --- Kafka
+    
+    Kafka --- Postgres[(PostgreSQL)]
+    Kafka --- MinIO[(MinIO)]
+    Kafka --- Redis[(Redis)]
+    Kafka --- ClickHouse[(ClickHouse)]
 ```
 
 ---

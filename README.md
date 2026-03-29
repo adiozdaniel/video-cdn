@@ -13,17 +13,18 @@ Open-source CDN and video streaming platform built for maximum throughput using 
 
 ## 🏗️ Architecture
 
-```txt
-HAProxy (L7 Router)
-    │
-    ├─> /api/upload/* ──> Rust Upload Service (presigned URLs)
-    ├─> /videos/* ──────> Nginx CDN Edge (cached delivery)
-    │
-    └─> Infrastructure:
-        ├─ MinIO (Object Storage)
-        ├─ PostgreSQL (Metadata)
-        ├─ Redis (Job Queue + Cache)
-        └─ Rust Workers (FFmpeg Processing)
+```mermaid
+graph TD
+    HAProxy[HAProxy L7 Router]
+    HAProxy -->|/api/upload/*| UploadSvc[Rust Upload Service]
+    HAProxy -->|/videos/*| Nginx[Nginx CDN Edge]
+    
+    subgraph Infrastructure
+        MinIO[(MinIO Object Storage)]
+        Postgres[(PostgreSQL Metadata)]
+        Redis[(Redis Queue + Cache)]
+        Workers[Rust Workers FFmpeg]
+    end
 ```
 
 ## 📊 Performance Targets
@@ -112,21 +113,22 @@ Once processing is complete (status: "READY"), play with HLS.js:
 
 ## 📂 Project Structure
 
-```txt
-cdn/
-├── upload-service/         # Rust service for presigned upload URLs
-├── processing-worker/      # Rust worker with FFmpeg for transcoding
-├── video-service/          # Spring Boot (to be implemented)
-├── job-service/            # Spring Boot (to be implemented)
-├── web-player/             # HTML5 video player (to be implemented)
-├── infrastructure/
-│   ├── haproxy/            # L7 load balancer config
-│   ├── nginx/              # CDN edge caching config
-│   ├── postgres/           # Database schema
-│   ├── redis/              # Job queue config
-│   └── minio/              # Object storage
-├── scripts/                # Startup and utility scripts
-└── docker-compose.yml      # Full stack orchestration
+```mermaid
+graph LR
+    Root[cdn/]
+    Root --> Upload[upload-service/ Rust Upload API]
+    Root --> Worker[processing-worker/ Rust Transcoder]
+    Root --> Video[video-service/ Spring Boot API]
+    Root --> Job[job-service/ Spring Boot Orchestrator]
+    Root --> Player[web-player/ HTML5 Player]
+    Root --> Infra[infrastructure/]
+    Infra --> HAProxy[haproxy/ LB Config]
+    Infra --> Nginx[nginx/ Cache Config]
+    Infra --> PG[postgres/ DB Schema]
+    Infra --> Redis[redis/ Queue Config]
+    Infra --> MinIO[minio/ Storage Config]
+    Root --> Scripts[scripts/ Utility Scripts]
+    Root --> Docker[docker-compose.yml Orchestration]
 ```
 
 ## ⚙️ Configuration

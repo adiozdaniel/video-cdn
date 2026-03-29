@@ -43,15 +43,15 @@ POST   /drm/devices/register       - Register new device
 
 ### License Generation Flow
 
-```txt
-1. Player requests video
-2. Check user entitlement (subscription, rental, purchase)
-3. Validate device (max 5 devices per user)
-4. Check concurrent streams (max 2 streams)
-5. Generate license request
-6. Contact DRM provider
-7. Return encrypted license
-8. Log license issuance
+```mermaid
+graph TD
+    Start[1. Player Requests Video] --> Entitlement[2. Check User Entitlement]
+    Entitlement --> Device[3. Validate Device max 5]
+    Device --> Concurrent[4. Check Concurrent Streams max 2]
+    Concurrent --> Req[5. Generate License Request]
+    Req --> Provider[6. Contact DRM Provider]
+    Provider --> Return[7. Return Encrypted License]
+    Return --> Log[8. Log License Issuance]
 ```
 
 ### Security Features

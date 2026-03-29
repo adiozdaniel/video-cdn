@@ -94,12 +94,18 @@ GET    /api/workers             - Worker health status
 
 ### Job Lifecycle
 
-```txt
-CREATED → QUEUED → PROCESSING → COMPLETED
-                               ↓
-                           FAILED → RETRYING (max 3)
-                                  ↓
-                           DEAD_LETTER
+```mermaid
+stateDiagram-v2
+    [*] --> CREATED
+    CREATED --> QUEUED
+    QUEUED --> PROCESSING
+    PROCESSING --> COMPLETED
+    PROCESSING --> FAILED
+    FAILED --> RETRYING: max 3 attempts
+    RETRYING --> QUEUED
+    FAILED --> DEAD_LETTER: after 3 retries
+    COMPLETED --> [*]
+    DEAD_LETTER --> [*]
 ```
 
 ### Retry Strategy

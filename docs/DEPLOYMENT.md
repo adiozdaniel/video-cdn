@@ -78,30 +78,33 @@ kubectl apply -f k8s/CMS-services.yaml
 
 ### Global Architecture
 
-```txt
-┌─────────────────────────────────────┐
-│  Global Load Balancer (Route53)     │
-└──────────────┬──────────────────────┘
-               │
-       ┌───────┴───────┐
-       │               │
-┌──────▼─────┐  ┌─────▼──────┐
-│ Region: US │  │ Region: EU │
-├────────────┤  ├────────────┤
-│ • HAProxy  │  │ • HAProxy  │
-│ • Services │  │ • Services │
-│ • Redis    │  │ • Redis    │
-└──────┬─────┘  └──────┬─────┘
-       │                │
-       └────────┬───────┘
-                │
-        ┌───────▼────────┐
-        │  Global Layer   │
-        ├─────────────────┤
-        │ • Kafka Cluster │
-        │ • PostgreSQL    │
-        │ • MinIO (dist)  │
-        └─────────────────┘
+```mermaid
+graph TD
+    GLB[Global Load Balancer Route53]
+    
+    GLB --> US[Region: US]
+    GLB --> EU[Region: EU]
+    
+    subgraph USRegion[US Region]
+        US_HA[HAProxy]
+        US_Svc[Services]
+        US_Redis[Redis]
+    end
+    
+    subgraph EURegion[EU Region]
+        EU_HA[HAProxy]
+        EU_Svc[Services]
+        EU_Redis[Redis]
+    end
+    
+    US_Svc --> Global
+    EU_Svc --> Global
+    
+    subgraph Global[Global Layer]
+        Kafka((Kafka Cluster))
+        PG[(PostgreSQL Primary/Replica)]
+        MinIO[(MinIO Distributed)]
+    end
 ```
 
 ### Regions

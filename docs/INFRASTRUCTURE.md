@@ -14,15 +14,17 @@ Core infrastructure components that support the platform.
 
 ### Routing Rules
 
-```txt
-/api/upload/*     → upload-service:8080    (Rust)
-/api/stream/*     → streaming-service:8085 (Rust)
-/api/videos/*     → video-service:8081     (Java)
-/api/jobs/*       → job-service:8082       (Java)
-/api/analytics/*  → analytics-service:8084 (Java)
-/drm/*            → drm-service:8083       (CMS)
-/admin/*          → cms-service:8082       (CMS)
-/*                → portal-service:8082    (CMS)
+```mermaid
+graph LR
+    LB[HAProxy :80]
+    LB -->|/api/upload/*| Upload[upload-service Rust]
+    LB -->|/api/stream/*| Stream[streaming-service Rust]
+    LB -->|/api/videos/*| Video[video-service Java]
+    LB -->|/api/jobs/*| Job[job-service Java]
+    LB -->|/api/analytics/*| Analytics[analytics-service Java]
+    LB -->|/drm/*| DRM[drm-service CMS]
+    LB -->|/admin/*| CMS[cms-service CMS]
+    LB -->|/*| Portal[portal-service CMS]
 ```
 
 ### Features
