@@ -37,17 +37,17 @@ public class KafkaCompletionEventConsumer {
             log.info("Received completion event: videoId={}, profile={}, status={}, partition={}, offset={}",
                 event.getVideoId(), event.getProfile(), event.getStatus(), partition, offset);
 
-            // Process completion event
-            completionTrackingService.handleProfileCompleted(event);
-
-            log.debug("Successfully processed completion event for {} {}",
-                event.getVideoId(), event.getProfile());
+            // Process completion event reactively
+            completionTrackingService.handleProfileCompleted(event)
+                .doOnSuccess(v -> log.debug("Successfully processed completion event for {} {}",
+                    event.getVideoId(), event.getProfile()))
+                .doOnError(e -> log.error("Failed to process completion event for {} {}: {}",
+                    event.getVideoId(), event.getProfile(), e.getMessage()))
+                .subscribe();
 
         } catch (Exception e) {
-            log.error("Error processing completion event from partition {} offset {}: {}",
+            log.error("Error parsing completion event from partition {} offset {}: {}",
                 partition, offset, e.getMessage(), e);
-            // Don't throw exception - let Kafka commit the offset and continue
-            // Failed events will need manual investigation
         }
     }
 }
