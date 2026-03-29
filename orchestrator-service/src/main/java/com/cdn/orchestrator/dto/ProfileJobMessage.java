@@ -16,12 +16,12 @@ public class ProfileJobMessage {
     private String priority;         // high, medium, low
     private Long timestamp;
 
-    // Phase 4: Chunk support (optional, null = whole video)
+    // Chunk support (optional, null = whole video)
     private Integer chunkId;
     private Double startTime;
     private Double endTime;
 
-    // Phase 3: Whole video processing
+    // Whole video processing
     public ProfileJobMessage(UUID videoId, String profile, String filename, String preset) {
         this.videoId = videoId.toString();
         this.profile = profile;
@@ -33,7 +33,7 @@ public class ProfileJobMessage {
         // chunkId, startTime, endTime remain null for whole video
     }
 
-    // Phase 4: Chunk processing
+    // Chunk processing
     public ProfileJobMessage(UUID videoId, String profile, String filename, String preset,
                             int chunkId, double startTime, double endTime) {
         this(videoId, profile, filename, preset);

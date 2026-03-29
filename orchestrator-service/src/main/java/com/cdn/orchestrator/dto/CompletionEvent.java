@@ -15,6 +15,6 @@ public class CompletionEvent {
     private String errorMessage;
     private Long timestamp;
 
-    // Phase 4: Chunk support (optional, null = whole video)
+    // Chunk support (optional, null = whole video)
     private Integer chunkId;
 }
