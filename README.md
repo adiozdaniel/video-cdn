@@ -1,6 +1,6 @@
 # 🎥 High-Throughput CDN & Video Streaming Platform
 
-Open-source Netflix-like CDN and video streaming platform built for maximum throughput using hybrid Go + Spring Boot architecture.
+Open-source CDN and video streaming platform built for maximum throughput using hybrid Rust + Spring Boot architecture.
 
 ## 🎯 Features
 
@@ -16,14 +16,14 @@ Open-source Netflix-like CDN and video streaming platform built for maximum thro
 ```txt
 HAProxy (L7 Router)
     │
-    ├─> /api/upload/* ──> Go Upload Service (presigned URLs)
+    ├─> /api/upload/* ──> Rust Upload Service (presigned URLs)
     ├─> /videos/* ──────> Nginx CDN Edge (cached delivery)
     │
     └─> Infrastructure:
         ├─ MinIO (Object Storage)
         ├─ PostgreSQL (Metadata)
         ├─ Redis (Job Queue + Cache)
-        └─ Go Workers (FFmpeg Processing)
+        └─ Rust Workers (FFmpeg Processing)
 ```
 
 ## 📊 Performance Targets
@@ -114,8 +114,8 @@ Once processing is complete (status: "READY"), play with HLS.js:
 
 ```txt
 cdn/
-├── upload-service/          # Go service for presigned upload URLs
-├── processing-worker/       # Go worker with FFmpeg for transcoding
+├── upload-service/         # Rust service for presigned upload URLs
+├── processing-worker/      # Rust worker with FFmpeg for transcoding
 ├── video-service/          # Spring Boot (to be implemented)
 ├── job-service/            # Spring Boot (to be implemented)
 ├── web-player/             # HTML5 video player (to be implemented)
@@ -174,14 +174,14 @@ cd processing-worker && docker build -t cdn-worker .
 
 ```bash
 # Install dependencies
-cd upload-service && go mod download
-cd processing-worker && go mod download
+cd upload-service && cargo fetch
+cd processing-worker && cargo fetch
 
 # Run upload service
-cd upload-service && go run cmd/server/main.go
+cd upload-service && cargo run
 
 # Run worker
-cd processing-worker && go run cmd/worker/main.go
+cd processing-worker && cargo run
 ```
 
 ## 📈 Scaling
