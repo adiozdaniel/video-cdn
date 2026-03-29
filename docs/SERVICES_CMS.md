@@ -1,10 +1,10 @@
-# 🐘 PHP Services (User-Facing Layer)
+# 🐘 CMS Services (User-Facing Layer)
 
 [← Back to Architecture](./ARCHITECTURE.md)
 
 ---
 
-PHP/Laravel services handle user-facing features, DRM licensing, and content management.
+CMS/Laravel services handle user-facing features, DRM licensing, and content management.
 
 ---
 
@@ -14,6 +14,7 @@ PHP/Laravel services handle user-facing features, DRM licensing, and content man
 **Purpose:** DRM license server
 
 ### Responsibilities
+
 - Widevine license generation
 - PlayReady license proxy
 - FairPlay certificate management
@@ -23,12 +24,14 @@ PHP/Laravel services handle user-facing features, DRM licensing, and content man
 - License audit logging
 
 ### DRM Providers
+
 - Google Widevine (L1, L3)
 - Microsoft PlayReady
 - Apple FairPlay Streaming
 
 ### API Endpoints
-```
+
+```txt
 POST   /drm/license/widevine       - Generate Widevine license
 POST   /drm/license/playready      - Generate PlayReady license
 GET    /drm/certificate/fairplay   - Get FairPlay certificate
@@ -39,7 +42,8 @@ POST   /drm/devices/register       - Register new device
 ```
 
 ### License Generation Flow
-```
+
+```txt
 1. Player requests video
 2. Check user entitlement (subscription, rental, purchase)
 3. Validate device (max 5 devices per user)
@@ -51,6 +55,7 @@ POST   /drm/devices/register       - Register new device
 ```
 
 ### Security Features
+
 - HDCP enforcement (L1 Widevine)
 - Output control (analog blocking)
 - Device binding
@@ -58,12 +63,14 @@ POST   /drm/devices/register       - Register new device
 - Geo-blocking support
 
 ### Events Published
+
 - `drm.license.issued`
 - `drm.license.revoked`
 - `drm.device.registered`
 - `drm.concurrent.limit_exceeded`
 
 ### Technology Stack
+
 - Laravel 11
 - Laravel Passport (OAuth2)
 - Redis (token cache)
@@ -77,7 +84,8 @@ POST   /drm/devices/register       - Register new device
 **Port:** 8082
 **Purpose:** Content management system
 
-### Responsibilities
+### CMS Responsibilities
+
 - Video metadata editor
 - Thumbnail management
 - Subtitle/caption upload
@@ -91,6 +99,7 @@ POST   /drm/devices/register       - Register new device
 ### Admin Features
 
 #### Video Management
+
 - Edit title, description, tags
 - Upload/select thumbnails
 - Add subtitles (WebVTT)
@@ -100,28 +109,33 @@ POST   /drm/devices/register       - Register new device
 - Age ratings
 
 #### Playlist Management
+
 - Create playlists
 - Drag-drop ordering
 - Auto-playlists (rule-based)
 - Playlist thumbnails
 
 #### Content Scheduling
+
 - Schedule publish date/time
 - Schedule expiration
 - Timezone-aware scheduling
 
 #### User Management
+
 - Roles: Super Admin, Admin, Editor, Moderator
 - Granular permissions
 - Activity logs
 
 #### Moderation
+
 - Reported content queue
 - Approve/reject workflows
 - Bulk moderation actions
 
-### API Endpoints
-```
+### CMS API Endpoints
+
+```txt
 # Admin APIs (authenticated)
 GET    /admin/videos              - List videos
 POST   /admin/videos/:id/publish  - Publish video
@@ -130,7 +144,8 @@ POST   /admin/playlists           - Create playlist
 POST   /admin/moderation/review   - Review content
 ```
 
-### Events Published
+### CMS Events Published
+
 - `video.metadata.updated`
 - `video.published`
 - `video.unpublished`
@@ -140,7 +155,8 @@ POST   /admin/moderation/review   - Review content
 - `playlist.created`
 - `playlist.updated`
 
-### Technology Stack
+### CMS Technology Stack
+
 - Laravel 11
 - Filament Admin Panel
 - Laravel Media Library
@@ -154,7 +170,8 @@ POST   /admin/moderation/review   - Review content
 **Port:** 8082 (same Laravel app)
 **Purpose:** Public-facing user portal
 
-### Responsibilities
+### CMS Portal Responsibilities
+
 - Video catalog browsing
 - Search with filters
 - Video player pages
@@ -167,6 +184,7 @@ POST   /admin/moderation/review   - Review content
 ### User Features
 
 #### Video Browsing
+
 - Homepage with featured content
 - Category pages
 - Search with autocomplete
@@ -174,6 +192,7 @@ POST   /admin/moderation/review   - Review content
 - Infinite scroll
 
 #### Video Player
+
 - HLS.js integration
 - Quality selector
 - Playback speed control
@@ -182,19 +201,22 @@ POST   /admin/moderation/review   - Review content
 - Keyboard shortcuts
 
 #### User Profile
+
 - Watch history
 - Favorites/watchlist
 - Subscriptions
 - Settings (language, quality preference)
 
 #### Social Features
+
 - Like/dislike videos
 - Comment on videos
 - Reply to comments
 - Report content
 
-### API Endpoints
-```
+### Content API Endpoints
+
+```txt
 GET    /api/catalog               - Browse videos
 GET    /api/catalog/:id           - Video details
 GET    /api/search                - Search videos
@@ -204,13 +226,15 @@ GET    /api/user/history          - Watch history
 POST   /api/user/favorite         - Add to favorites
 ```
 
-### Events Published
+### User Events Published
+
 - `user.video.liked`
 - `user.video.commented`
 - `user.video.reported`
 - `user.subscription.created`
 
-### Technology Stack
+### CMS Technology Stacks
+
 - Laravel 11
 - Laravel Sanctum (auth)
 - Blade templates
@@ -223,7 +247,7 @@ POST   /api/user/favorite         - Add to favorites
 ## Performance Characteristics
 
 | Metric | Target | Achieved |
-|--------|--------|----------|
+| -------- | -------- | ---------- |
 | DRM license generation | < 100ms | ✅ 85ms |
 | CMS page load | < 200ms | ✅ 180ms |
 | Portal page load | < 300ms | ✅ 280ms |
@@ -235,6 +259,7 @@ POST   /api/user/favorite         - Add to favorites
 ## Deployment
 
 ### Docker
+
 ```bash
 # Build
 docker build -t cdn-drm-service ./drm-service
@@ -246,6 +271,7 @@ docker run -p 8082:80 cdn-cms-service
 ```
 
 ### Configuration
+
 ```.env
 # ClickHouse
 CLICKHOUSE_HOST=clickhouse
