@@ -64,6 +64,7 @@ docker-compose logs -f worker-1
 - **MinIO Console**: http://localhost:9001 (minioadmin / minioadmin123)
 - **HAProxy Stats**: http://localhost:8404/stats
 - **Video Delivery**: http://localhost/videos/{videoId}/master.m3u8
+- **Front End**: https://github.com/adiozdaniel/video-streamer
 
 ### 3. Upload a Video
 
