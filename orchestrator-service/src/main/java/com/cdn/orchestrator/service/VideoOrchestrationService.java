@@ -12,7 +12,8 @@ import com.cdn.orchestrator.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.io.File;
 import java.util.List;
@@ -32,127 +33,91 @@ public class VideoOrchestrationService {
     private final MinioService minioService;
     private final VideoChunkingService chunkingService;
 
-    @Transactional
-    public void orchestrateVideo(UUID videoId) {
+    public Mono<Void> orchestrateVideo(UUID videoId) {
         log.info("🎬 Starting orchestration for video: {}", videoId);
 
-        // 1. Get video from database
-        Video video = videoRepository.findById(videoId)
-            .orElseThrow(() -> new RuntimeException("Video not found: " + videoId));
+        return videoRepository.findById(videoId)
+            .switchIfEmpty(Mono.error(new RuntimeException("Video not found: " + videoId)))
+            .flatMap(video -> {
+                video.setStatus("PROCESSING");
+                return videoRepository.save(video);
+            })
+            .flatMap(video -> minioService.downloadForProbing(videoId, video.getFilename())
+                .flatMap(videoFile -> probeService.probeVideo(videoFile)
+                    .flatMap(metadata -> {
+                        List<String> profiles = profileSelector.selectProfiles(metadata);
+                        String preset = profileSelector.selectPreset(metadata.duration());
+                        boolean needsChunking = chunkingService.needsChunking(metadata.duration());
+                        List<VideoChunk> chunks = chunkingService.splitVideo(videoId, metadata.duration());
 
-        // 2. Set status to PROCESSING
-        video.setStatus("PROCESSING");
-        videoRepository.save(video);
-        log.info("Set video {} status to PROCESSING", videoId);
+                        Mono<Void> orchestrationProcess;
+                        if (needsChunking) {
+                            orchestrationProcess = orchestrateWithChunking(videoId, video.getFilename(), profiles, preset, chunks);
+                        } else {
+                            orchestrationProcess = orchestrateWholeVideo(videoId, video.getFilename(), profiles, preset);
+                        }
 
-        try {
-            // 3. Download video temporarily for probing
-            File videoFile = minioService.downloadForProbing(videoId, video.getFilename());
-
-            // 3. Probe video metadata
-            VideoMetadata metadata = probeService.probeVideo(videoFile);
-
-            // 4. Select profiles adaptively
-            List<String> profiles = profileSelector.selectProfiles(metadata);
-            String preset = profileSelector.selectPreset(metadata.duration());
-
-            log.info("Selected {} profiles for video {}: {}", profiles.size(), videoId, profiles);
-
-            // 5. Phase 4: Check if chunking is needed
-            boolean needsChunking = chunkingService.needsChunking(metadata.duration());
-            List<VideoChunk> chunks = chunkingService.splitVideo(videoId, metadata.duration());
-
-            if (needsChunking) {
-                log.info("📦 Phase 4: Video {} will be processed with {} chunks", videoId, chunks.size());
-                orchestrateWithChunking(videoId, video.getFilename(), profiles, preset, chunks);
-            } else {
-                log.info("🎥 Phase 3: Video {} will be processed as whole", videoId);
-                orchestrateWholeVideo(videoId, video.getFilename(), profiles, preset);
-            }
-
-            // 6. Clean up temp file
-            videoFile.delete();
-
-            log.info("✅ Orchestration complete for video: {}", videoId);
-
-        } catch (Exception e) {
-            log.error("❌ Orchestration failed for video {}: {}", videoId, e.getMessage(), e);
-            video.setStatus("FAILED");
-            videoRepository.save(video);
-        }
+                        return orchestrationProcess
+                            .doFinally(signalType -> {
+                                if (videoFile.exists()) {
+                                    videoFile.delete();
+                                }
+                            });
+                    })
+                )
+            )
+            .doOnSuccess(v -> log.info("✅ Orchestration complete for video: {}", videoId))
+            .onErrorResume(e -> {
+                log.error("❌ Orchestration failed for video {}: {}", videoId, e.getMessage());
+                return videoRepository.updateStatus(videoId, "FAILED")
+                    .then(Mono.error(e));
+            })
+            .then();
     }
 
-    /**
-     * Phase 3: Orchestrate whole video processing (no chunking)
-     */
-    private void orchestrateWholeVideo(UUID videoId, String filename,
-                                       List<String> profiles, String preset) {
-        // Create profile job records
-        for (String profile : profiles) {
-            VideoProfileJob job = new VideoProfileJob(videoId, profile);
-            profileJobRepository.save(job);
-        }
-
-        // Publish 240p FIRST (high priority - fastest to complete)
-        if (profiles.contains("240p")) {
-            publishJob("240p", videoId, filename, "ultrafast");
-        }
-
-        // Publish other profiles
-        for (String profile : profiles) {
-            if (!profile.equals("240p")) {
-                publishJob(profile, videoId, filename, preset);
-            }
-        }
+    private Mono<Void> orchestrateWholeVideo(UUID videoId, String filename,
+                                            List<String> profiles, String preset) {
+        return Flux.fromIterable(profiles)
+            .flatMap(profile -> profileJobRepository.save(new VideoProfileJob(videoId, profile)))
+            .thenMany(Flux.fromIterable(profiles))
+            .flatMap(profile -> {
+                String usedPreset = profile.equals("240p") ? "ultrafast" : preset;
+                return publishJob(profile, videoId, filename, usedPreset);
+            })
+            .then();
     }
 
-    /**
-     * Phase 4: Orchestrate chunked video processing
-     */
-    private void orchestrateWithChunking(UUID videoId, String filename,
-                                         List<String> profiles, String preset,
-                                         List<VideoChunk> chunks) {
-        // Create chunk job records for each profile and chunk
-        for (String profile : profiles) {
-            for (VideoChunk chunk : chunks) {
-                VideoChunkJob job = new VideoChunkJob(
+    private Mono<Void> orchestrateWithChunking(UUID videoId, String filename,
+                                              List<String> profiles, String preset,
+                                              List<VideoChunk> chunks) {
+        return Flux.fromIterable(profiles)
+            .flatMap(profile -> Flux.fromIterable(chunks)
+                .flatMap(chunk -> chunkJobRepository.save(new VideoChunkJob(
                     videoId,
                     profile,
                     chunk.getChunkId(),
                     chunk.getStartTime(),
                     chunk.getEndTime()
-                );
-                chunkJobRepository.save(job);
-            }
-        }
-
-        // Publish 240p chunks FIRST (high priority - fastest to complete for PLAYABLE state)
-        if (profiles.contains("240p")) {
-            for (VideoChunk chunk : chunks) {
-                publishChunkJob("240p", videoId, filename, "ultrafast", chunk);
-            }
-        }
-
-        // Publish other profile chunks
-        for (String profile : profiles) {
-            if (!profile.equals("240p")) {
-                for (VideoChunk chunk : chunks) {
-                    publishChunkJob(profile, videoId, filename, preset, chunk);
-                }
-            }
-        }
-
-        log.info("Published {} chunk jobs for video {} ({} profiles × {} chunks)",
-            profiles.size() * chunks.size(), videoId, profiles.size(), chunks.size());
+                )))
+            )
+            .thenMany(Flux.fromIterable(profiles))
+            .flatMap(profile -> Flux.fromIterable(chunks)
+                .flatMap(chunk -> {
+                    String usedPreset = profile.equals("240p") ? "ultrafast" : preset;
+                    return publishChunkJob(profile, videoId, filename, usedPreset, chunk);
+                })
+            )
+            .then()
+            .doOnSuccess(v -> log.info("Published chunk jobs for video {}", videoId));
     }
 
-    private void publishJob(String profile, UUID videoId, String filename, String preset) {
+    private Mono<Void> publishJob(String profile, UUID videoId, String filename, String preset) {
         ProfileJobMessage job = new ProfileJobMessage(videoId, profile, filename, preset);
-        kafkaProducer.publishProfileJob(profile, job);
+        return kafkaProducer.publishProfileJob(profile, job);
     }
 
-    private void publishChunkJob(String profile, UUID videoId,
-                                 String filename, String preset, VideoChunk chunk) {
+    private Mono<Void> publishChunkJob(String profile, UUID videoId,
+                                      String filename, String preset, VideoChunk chunk) {
         ProfileJobMessage job = new ProfileJobMessage(
             videoId,
             profile,
@@ -162,6 +127,6 @@ public class VideoOrchestrationService {
             chunk.getStartTime(),
             chunk.getEndTime()
         );
-        kafkaProducer.publishProfileJob(profile, job);
+        return kafkaProducer.publishProfileJob(profile, job);
     }
 }
