@@ -1,49 +1,39 @@
 package com.cdn.orchestrator.model;
 
-import jakarta.persistence.*;
 import lombok.Data;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "videos")
+@Table("videos")
 @Data
 public class Video {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, length = 512)
     private String filename;
 
-    @Column(nullable = false)
     private Long size;
 
-    @Column
     private Integer duration; // seconds
 
-    @Column(nullable = false, length = 20)
     private String status = "UPLOADING";
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column("created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "uploaded_at")
+    @Column("uploaded_at")
     private LocalDateTime uploadedAt;
 
-    @Column(name = "processed_at")
+    @Column("processed_at")
     private LocalDateTime processedAt;
 
-    @Column(name = "deleted_at")
+    @Column("deleted_at")
     private LocalDateTime deletedAt;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
     private String metadata; // JSON metadata
 }

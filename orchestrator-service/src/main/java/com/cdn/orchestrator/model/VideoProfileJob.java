@@ -1,59 +1,54 @@
 package com.cdn.orchestrator.model;
 
-import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "video_profile_jobs", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"video_id", "profile"})
-})
+@Table("video_profile_jobs")
 @Data
 @NoArgsConstructor
 public class VideoProfileJob {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "video_id", nullable = false)
+    @Column("video_id")
     private UUID videoId;
 
-    @Column(nullable = false, length = 10)
     private String profile; // 480p, 720p, etc.
 
-    @Column(nullable = false, length = 20)
     private String status = "QUEUED"; // QUEUED, PROCESSING, COMPLETED, FAILED
 
-    @Column(name = "worker_id", length = 50)
+    @Column("worker_id")
     private String workerId;
 
-    @Column(name = "started_at")
+    @Column("started_at")
     private LocalDateTime startedAt;
 
-    @Column(name = "completed_at")
+    @Column("completed_at")
     private LocalDateTime completedAt;
 
-    @Column(name = "duration_ms")
+    @Column("duration_ms")
     private Integer durationMs;
 
-    @Column(name = "files_count")
+    @Column("files_count")
     private Integer filesCount;
 
-    @Column(name = "error_message", columnDefinition = "text")
+    @Column("error_message")
     private String errorMessage;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column("created_at")
     private LocalDateTime createdAt;
 
     public VideoProfileJob(UUID videoId, String profile) {
         this.videoId = videoId;
         this.profile = profile;
         this.status = "QUEUED";
+        this.createdAt = LocalDateTime.now();
     }
 }
