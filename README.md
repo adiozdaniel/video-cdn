@@ -131,6 +131,16 @@ graph LR
     Root --> Docker[docker-compose.yml Orchestration]
 ```
 
+## 📚 Documentation
+
+Comprehensive documentation for the architecture, services, and deployment can be found in the [Documentation Hub](./docs/README.md).
+
+- **[Architecture Overview](./docs/ARCHITECTURE.md)**
+- **[Full Architecture Diagram](./docs/ARCHITECTURE_DIAGRAM.md)**
+- **[Event Architecture](./docs/EVENTS.md)**
+- **[Data Flows](./docs/DATA_FLOWS.md)**
+- **[Infrastructure & Operations](./docs/INFRASTRUCTURE.md)**
+
 ## ⚙️ Configuration
 
 ### Upload Service
