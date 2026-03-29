@@ -113,7 +113,7 @@ CREATE TABLE worker_health (
 
 CREATE INDEX idx_worker_health ON worker_health(last_heartbeat DESC);
 
--- Phase 3: Video profile jobs tracking (specialized workers)
+-- Video profile jobs tracking (specialized workers)
 CREATE TABLE video_profile_jobs (
     id BIGSERIAL PRIMARY KEY,
     video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
@@ -132,7 +132,7 @@ CREATE TABLE video_profile_jobs (
 CREATE INDEX idx_profile_jobs_video ON video_profile_jobs(video_id);
 CREATE INDEX idx_profile_jobs_status ON video_profile_jobs(status) WHERE status IN ('QUEUED', 'PROCESSING');
 
--- Phase 4: Video chunk jobs tracking (distributed processing)
+-- Video chunk jobs tracking (distributed processing)
 CREATE TABLE video_chunk_jobs (
     id BIGSERIAL PRIMARY KEY,
     video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,

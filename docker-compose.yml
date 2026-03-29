@@ -101,7 +101,7 @@ services:
       start_period: 60s
 
   # ==========================================
-  # ORCHESTRATOR SERVICE - Java/Spring Boot (Phase 3)
+  # ORCHESTRATOR SERVICE - Java/Spring Boot
   # ==========================================
   orchestrator:
     build:
@@ -173,7 +173,7 @@ services:
       start_period: 10s
 
   # ==========================================
-  # PROCESSING WORKERS - Rust + FFmpeg (Phase 3/4)
+  # PROCESSING WORKERS - Rust + FFmpeg
   # Profile-specific workers for parallel processing
   # ==========================================
 
