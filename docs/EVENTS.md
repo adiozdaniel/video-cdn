@@ -11,14 +11,16 @@ All services communicate asynchronously via Kafka events for loose coupling and 
 ## Kafka Topics
 
 ### Upload Events
-```
+
+```txt
 video.upload.initiated     - Upload URL generated
 video.upload.completed     - File upload finished
 video.upload.cancelled     - Upload cancelled
 ```
 
 ### Processing Events
-```
+
+```txt
 video.processing.started   - Worker picked up job
 video.processing.progress  - Progress update (10% intervals)
 video.processing.completed - Transcoding complete
@@ -26,7 +28,8 @@ video.processing.failed    - Processing failed
 ```
 
 ### Metadata Events
-```
+
+```txt
 video.metadata.updated     - CMS updated metadata
 video.published            - Video went live
 video.unpublished          - Video taken down
@@ -35,7 +38,8 @@ video.deleted              - Video deleted
 ```
 
 ### Playback Events
-```
+
+```txt
 video.playback.started         - User started watching
 video.playback.progress        - Playback position update
 video.playback.quality_changed - ABR quality switch
@@ -45,7 +49,8 @@ video.playback.error           - Playback error
 ```
 
 ### Job Events
-```
+
+```txt
 job.created            - New processing job
 job.status.changed     - Job status update
 job.failed             - Job failure
@@ -53,7 +58,8 @@ job.retry.attempted    - Retry attempt
 ```
 
 ### DRM Events
-```
+
+```txt
 drm.license.issued         - License generated
 drm.license.revoked        - License revoked
 drm.device.registered      - Device registered
@@ -61,7 +67,8 @@ drm.concurrent.limit_exceeded - Too many streams
 ```
 
 ### User Events
-```
+
+```txt
 user.video.liked          - User liked video
 user.video.commented      - User commented
 user.video.reported       - Content reported
@@ -69,7 +76,8 @@ user.subscription.created - New subscription
 ```
 
 ### Infrastructure Events
-```
+
+```txt
 cdn.cache.hit          - CDN cache hit
 cdn.cache.miss         - CDN cache miss
 worker.health.degraded - Worker health issue
@@ -80,6 +88,7 @@ worker.health.degraded - Worker health issue
 ## Event Schemas
 
 ### video.upload.completed
+
 ```json
 {
   "videoId": "uuid",
@@ -92,6 +101,7 @@ worker.health.degraded - Worker health issue
 ```
 
 ### video.processing.completed
+
 ```json
 {
   "videoId": "uuid",
@@ -113,6 +123,7 @@ worker.health.degraded - Worker health issue
 ```
 
 ### video.playback.started
+
 ```json
 {
   "sessionId": "uuid",
@@ -134,20 +145,23 @@ worker.health.degraded - Worker health issue
 ## Kafka Configuration
 
 ### Deployment
+
 - 3+ brokers for HA
 - Zookeeper or KRaft mode
 - Replication factor: 3
 - Min in-sync replicas: 2
 
 ### Retention
+
 - Default: 7 days
 - Analytics topics: 30 days
 - Audit topics: 90 days
 
 ### Partitioning
+
 - Partition by `videoId` for ordering
 - 10 partitions per topic (scalable to 50)
 
 ---
 
-[← PHP Services](./SERVICES_PHP.md) | [← Back to Architecture](./ARCHITECTURE.md) | [Next: Data Flows →](./DATA_FLOWS.md)
+[← CMS Services](./SERVICES_CMS.md) | [← Back to Architecture](./ARCHITECTURE.md) | [Next: Data Flows →](./DATA_FLOWS.md)

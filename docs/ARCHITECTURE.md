@@ -12,7 +12,7 @@ This platform uses a **polyglot microservices architecture** where each service 
 
 - **Rust** - Performance-critical I/O operations (20+ Gbps throughput)
 - **Java/Spring Boot** - Complex business logic and orchestration
-- **PHP/Laravel** - User-facing features, DRM, and content management
+- **CMS/Laravel** - User-facing features, DRM, and content management
 - **Kafka** - Event backbone for asynchronous communication
 
 ### Design Principles
@@ -31,7 +31,7 @@ This platform uses a **polyglot microservices architecture** where each service 
 
 ### Simplified View
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                       HAProxy (L7 Router)                        │
 └────────────────────┬────────────────────────────────────────────┘
@@ -39,7 +39,7 @@ This platform uses a **polyglot microservices architecture** where each service 
      ┌───────────────┼───────────────┐
      │               │               │
 ┌────▼─────┐  ┌─────▼──────┐  ┌────▼─────┐
-│   RUST   │  │    JAVA    │  │   PHP    │
+│   RUST   │  │    JAVA    │  │   CMS    │
 │ Services │  │  Services  │  │ Services │
 └────┬─────┘  └─────┬──────┘  └────┬─────┘
      │               │               │
@@ -72,7 +72,7 @@ This platform uses a **polyglot microservices architecture** where each service 
   - job-service - Job orchestration
   - analytics-service - Metrics aggregation
 
-- **[PHP Services](./SERVICES_PHP.md)** - User-facing layer
+- **[CMS Services](./SERVICES_CMS.md)** - User-facing layer
   - drm-service - License server (Widevine, PlayReady, FairPlay)
   - cms-service - Content management
   - portal-service - Public catalog

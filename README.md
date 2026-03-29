@@ -13,7 +13,7 @@ Open-source Netflix-like CDN and video streaming platform built for maximum thro
 
 ## 🏗️ Architecture
 
-```
+```txt
 HAProxy (L7 Router)
     │
     ├─> /api/upload/* ──> Go Upload Service (presigned URLs)
@@ -29,7 +29,7 @@ HAProxy (L7 Router)
 ## 📊 Performance Targets
 
 | Metric | Target | Status |
-|--------|--------|--------|
+| -------- | -------- | -------- |
 | Upload Throughput | 20+ Gbps | ✅ Achieved |
 | Processing Throughput | 100+ videos/hour | ✅ Achieved |
 | Delivery Throughput | 50+ Gbps | ✅ Achieved |
@@ -60,11 +60,11 @@ docker-compose logs -f worker-1
 
 ### 2. Access Services
 
-- **API Endpoint**: http://localhost/api/upload/initiate
-- **MinIO Console**: http://localhost:9001 (minioadmin / minioadmin123)
-- **HAProxy Stats**: http://localhost:8404/stats
-- **Video Delivery**: http://localhost/videos/{videoId}/master.m3u8
-- **Front End**: https://github.com/adiozdaniel/video-streamer
+- **API Endpoint**: `http://localhost/api/upload/initiate`
+- **MinIO Console**: `http://localhost:9001` (minioadmin / minioadmin123)
+- **HAProxy Stats**: `http://localhost:8404/stats`
+- **Video Delivery**: `http://localhost/videos/{videoId}/master.m3u8`
+- **Front End**: `https://github.com/adiozdaniel/video-streamer`
 
 ### 3. Upload a Video
 
@@ -112,7 +112,7 @@ Once processing is complete (status: "READY"), play with HLS.js:
 
 ## 📂 Project Structure
 
-```
+```txt
 cdn/
 ├── upload-service/          # Go service for presigned upload URLs
 ├── processing-worker/       # Go worker with FFmpeg for transcoding

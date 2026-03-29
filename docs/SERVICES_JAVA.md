@@ -14,6 +14,7 @@ Java/Spring Boot services handle complex business logic, orchestration, and data
 **Purpose:** Video metadata and lifecycle management
 
 ### Responsibilities
+
 - CRUD operations for video metadata
 - Search and filtering with Elasticsearch
 - Video categorization and tagging
@@ -22,7 +23,8 @@ Java/Spring Boot services handle complex business logic, orchestration, and data
 - Recommendation engine
 
 ### API Endpoints
-```
+
+```txt
 GET    /api/videos              - List videos (paginated)
 GET    /api/videos/:id          - Get video details
 PUT    /api/videos/:id          - Update metadata
@@ -33,6 +35,7 @@ GET    /api/videos/recommended  - Recommendations
 ```
 
 ### Database Schema
+
 - `videos` - Video metadata
 - `video_variants` - Quality levels
 - `categories` - Category hierarchy
@@ -41,17 +44,20 @@ GET    /api/videos/recommended  - Recommendations
 - `watch_history` - User viewing history
 
 ### Events Consumed
+
 - `video.upload.completed`
 - `video.processing.completed`
 - `video.playback.*`
 
 ### Events Published
+
 - `video.metadata.updated`
 - `video.published`
 - `video.deleted`
 - `video.recommendation.generated`
 
 ### Technology Stack
+
 - Spring Boot 3.2
 - Spring Data JPA
 - Spring Kafka
@@ -66,7 +72,8 @@ GET    /api/videos/recommended  - Recommendations
 **Port:** 8082
 **Purpose:** Job orchestration and monitoring
 
-### Responsibilities
+### Job-Service Responsibilities
+
 - Create and schedule processing jobs
 - Monitor job progress and health
 - Implement retry logic with exponential backoff
@@ -74,8 +81,9 @@ GET    /api/videos/recommended  - Recommendations
 - Worker health tracking
 - SLA monitoring and alerting
 
-### API Endpoints
-```
+### Job-Service API Endpoints
+
+```txt
 GET    /api/jobs                - List all jobs
 GET    /api/jobs/:id            - Get job details
 POST   /api/jobs/:id/retry      - Retry failed job
@@ -85,7 +93,8 @@ GET    /api/workers             - Worker health status
 ```
 
 ### Job Lifecycle
-```
+
+```txt
 CREATED → QUEUED → PROCESSING → COMPLETED
                                ↓
                            FAILED → RETRYING (max 3)
@@ -94,22 +103,26 @@ CREATED → QUEUED → PROCESSING → COMPLETED
 ```
 
 ### Retry Strategy
+
 - Attempt 1: Immediate
 - Attempt 2: 1 minute delay
 - Attempt 3: 5 minutes delay
 - Attempt 4: Dead letter queue
 
-### Events Consumed
+### Job Events Consumed
+
 - `video.upload.completed`
 - `video.processing.*`
 
-### Events Published
+### Job Events Published
+
 - `job.created`
 - `job.status.changed`
 - `job.failed`
 - `worker.health.degraded`
 
-### Technology Stack
+### Job Technology Stack
+
 - Spring Boot 3.2
 - Spring Batch
 - Spring Kafka
@@ -124,15 +137,17 @@ CREATED → QUEUED → PROCESSING → COMPLETED
 **Port:** 8084
 **Purpose:** Real-time analytics and reporting
 
-### Responsibilities
+### Job Responsibilities
+
 - Aggregate viewer metrics
 - Generate engagement reports
 - Track CDN performance
 - Calculate video popularity scores
 - Revenue analytics (monetization)
 
-### API Endpoints
-```
+### Job API Endpoints
+
+```txt
 GET    /api/analytics/overview        - Dashboard metrics
 GET    /api/analytics/videos/:id      - Video-specific analytics
 GET    /api/analytics/realtime        - Real-time viewer counts
@@ -142,6 +157,7 @@ GET    /api/analytics/export          - Export analytics data
 ```
 
 ### Metrics Tracked
+
 - Total views, unique viewers
 - Watch time, completion rate
 - Geographic distribution
@@ -151,12 +167,14 @@ GET    /api/analytics/export          - Export analytics data
 - Buffering events
 - Error rates
 
-### Events Consumed
+### Jobs Events Consumed
+
 - `video.playback.*`
 - `video.processing.completed`
 - `cdn.cache.hit/miss`
 
-### Technology Stack
+### Jobs Technology Stack
+
 - Spring Boot 3.2
 - Spring Kafka Streams
 - ClickHouse (columnar OLAP)
@@ -169,7 +187,7 @@ GET    /api/analytics/export          - Export analytics data
 ## Performance Characteristics
 
 | Metric | Target | Achieved |
-|--------|--------|----------|
+| --------- | --------- | --------- |
 | API response time (p95) | < 50ms | ✅ 42ms |
 | Search latency | < 100ms | ✅ 85ms |
 | Job creation | < 10ms | ✅ 8ms |
@@ -182,6 +200,7 @@ GET    /api/analytics/export          - Export analytics data
 ## Deployment
 
 ### Docker
+
 ```bash
 # Build
 mvn clean package -DskipTests
@@ -196,6 +215,7 @@ docker run -p 8084:8084 cdn-analytics-service
 ```
 
 ### Configuration
+
 ```yaml
 # application.yml
 spring:
@@ -214,4 +234,4 @@ spring:
 
 ---
 
-[← Rust Services](./SERVICES_RUST.md) | [← Back to Architecture](./ARCHITECTURE.md) | [Next: PHP Services →](./SERVICES_PHP.md)
+[← Rust Services](./SERVICES_RUST.md) | [← Back to Architecture](./ARCHITECTURE.md) | [Next: CMS Services →](./SERVICES_CMS.md)

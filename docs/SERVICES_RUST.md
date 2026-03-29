@@ -14,19 +14,22 @@ Rust services handle performance-critical I/O operations with zero-copy transfer
 **Purpose:** High-throughput video upload handling
 
 ### Responsibilities
+
 - Generate presigned MinIO URLs (< 2ms latency)
 - Handle multipart upload coordination
 - Validate file types and sizes
 - Publish upload lifecycle events to Kafka
 
 ### Key Features
+
 - Zero-copy I/O operations
 - 20+ Gbps upload throughput
 - Connection pooling (10k+ concurrent)
 - Async I/O with Tokio runtime
 
 ### API Endpoints
-```
+
+```txt
 POST   /api/upload/initiate      - Get presigned URL
 POST   /api/upload/:id/complete  - Mark upload complete
 DELETE /api/upload/:id/cancel    - Cancel upload
@@ -35,11 +38,13 @@ GET    /health                   - Health check
 ```
 
 ### Events Published
+
 - `video.upload.initiated`
 - `video.upload.completed`
 - `video.upload.cancelled`
 
 ### Technology Stack
+
 - **Framework:** Axum
 - **Runtime:** Tokio
 - **Database:** SQLx (PostgreSQL)
@@ -52,21 +57,24 @@ GET    /health                   - Health check
 
 **Purpose:** CPU-intensive video transcoding
 
-### Responsibilities
+### Processing Responsibilities
+
 - Consume processing jobs from Kafka
 - Transcode videos with FFmpeg (3 bitrates: 1080p, 720p, 480p)
 - Generate HLS segments and master playlists
 - Create video thumbnails
 - Publish progress events
 
-### Key Features
+### Processing Key Features
+
 - Parallel processing (configurable workers)
 - FFmpeg wrapper with progress tracking
 - Automatic retry on failure
 - Graceful shutdown handling
 
 ### Processing Pipeline
-```
+
+```txt
 1. Download original video from MinIO
 2. Extract metadata (duration, resolution, codec)
 3. Generate thumbnails (3 frames)
@@ -77,16 +85,19 @@ GET    /health                   - Health check
 8. Update database status
 ```
 
-### Events Published
+### Processing Events Published
+
 - `video.processing.started`
 - `video.processing.progress` (every 10%)
 - `video.processing.completed`
 - `video.processing.failed`
 
 ### Events Consumed
+
 - `job.created`
 
-### Technology Stack
+### Processing Technology Stack
+
 - **Runtime:** Tokio
 - **Database:** SQLx (PostgreSQL)
 - **Storage:** aws-sdk-s3 (MinIO)
@@ -100,21 +111,24 @@ GET    /health                   - Health check
 **Port:** 8085
 **Purpose:** Real-time manifest generation and viewer metrics
 
-### Responsibilities
+### Streaming Responsibilities
+
 - Generate dynamic HLS/DASH manifests
 - Serve ABR (Adaptive Bitrate) logic
 - Track real-time viewer counts
 - Warm CDN cache
 - Collect playback analytics
 
-### Key Features
+### Streaming Key Features
+
 - Sub-millisecond manifest generation
 - Quality level switching logic
 - Bandwidth estimation
 - Viewer session management
 
-### API Endpoints
-```
+### Streaming API Endpoints
+
+```txt
 GET    /api/stream/:id/master.m3u8  - Get HLS master playlist
 GET    /api/stream/:id/:quality/*   - Get quality-specific playlists
 POST   /api/stream/session/start    - Start playback session
@@ -122,13 +136,15 @@ POST   /api/stream/session/heartbeat - Update session
 POST   /api/stream/session/end      - End session
 ```
 
-### Events Published
+### Streaming Events Published
+
 - `video.playback.started`
 - `video.playback.quality_changed`
 - `video.playback.buffering`
 - `video.playback.completed`
 
-### Technology Stack
+### Streaming Technology Stack
+
 - **Framework:** Axum
 - **Runtime:** Tokio
 - **Cache:** Redis (viewer sessions)
@@ -139,7 +155,7 @@ POST   /api/stream/session/end      - End session
 ## Performance Characteristics
 
 | Metric | Target | Achieved |
-|--------|--------|----------|
+| --------- | --------- | ----------- |
 | Upload throughput | 20 Gbps | ✅ 22 Gbps |
 | Transcoding | 1x realtime | ✅ 1.2x realtime |
 | Manifest generation | < 1ms | ✅ 0.6ms |
@@ -151,6 +167,7 @@ POST   /api/stream/session/end      - End session
 ## Deployment
 
 ### Docker
+
 ```bash
 # Build
 docker build -t cdn-upload-service ./upload-service
@@ -164,7 +181,9 @@ docker run -p 8085:8085 cdn-streaming-service
 ```
 
 ### Configuration
+
 Environment variables:
+
 ```env
 # Database
 DB_HOST=postgres

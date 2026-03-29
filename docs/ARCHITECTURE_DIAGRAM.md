@@ -6,7 +6,7 @@
 
 ## Full System Architecture
 
-```
+```txt
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
 │                                    EXTERNAL LAYER                                        │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
@@ -41,7 +41,7 @@
          │                              │                              │
 ┌────────▼────────┐            ┌────────▼────────┐            ┌───────▼────────┐
 │                 │            │                 │            │                │
-│  RUST SERVICES  │            │  JAVA SERVICES  │            │  PHP SERVICES  │
+│  RUST SERVICES  │            │  JAVA SERVICES  │            │  CMS SERVICES  │
 │  (I/O Layer)    │            │ (Business Logic)│            │ (User-Facing)  │
 │                 │            │                 │            │                │
 │  Port: 8080+    │            │  Port: 8081+    │            │  Port: 8082-83 │
@@ -75,7 +75,7 @@
 │  └──────────────┘  └──────────────┘  └──────────────┘                         │
 │                                                                                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                        │
-│  │    drm-      │  │    cms-      │  │   portal-    │   PHP SERVICES          │
+│  │    drm-      │  │    cms-      │  │   portal-    │   CMS SERVICES          │
 │  │   service    │  │   service    │  │   service    │                         │
 │  ├──────────────┤  ├──────────────┤  ├──────────────┤                         │
 │  │• Widevine    │  │• Admin panel │  │• Video       │                         │
@@ -137,7 +137,7 @@
 │  │ - Monthly        │  │   views          │  │ Performance:     │             │
 │  │ - Read replicas  │  │                  │  │ - < 1ms latency  │             │
 │  │                  │  │ Used by:         │  │ - 100K+ ops/sec  │             │
-│  │                  │  │ - PHP services   │  │                  │             │
+│  │                  │  │ - CMS services   │  │                  │             │
 │  │                  │  │ - Analytics svc  │  │                  │             │
 │  │                  │  │                  │  │                  │             │
 │  │                  │  │ Performance:     │  │                  │             │
@@ -193,14 +193,14 @@
 
 ### 1. Video Upload Flow
 
-```
+```txt
 ┌─────────────┐
 │    User     │
 └──────┬──────┘
        │ 1. Request upload
        ▼
 ┌─────────────────┐
-│ portal-service  │ (PHP)
+│ portal-service  │ (CMS)
 └──────┬──────────┘
        │ 2. Call API
        ▼
@@ -256,20 +256,20 @@
 
 ### 2. Video Playback Flow (DRM)
 
-```
+```txt
 ┌─────────────┐
 │    User     │
 └──────┬──────┘
        │ 1. Browse catalog
        ▼
 ┌──────────────────┐
-│  portal-service  │ (PHP)
+│  portal-service  │ (CMS)
 │  - Video list    │
 └──────┬───────────┘
        │ 2. Select video
        ▼
 ┌──────────────────┐
-│  drm-service     │ (PHP)
+│  drm-service     │ (CMS)
 │  - Check         │
 │    entitlement   │
 │  - Generate      │
@@ -312,7 +312,7 @@
 
 ### 3. Analytics Pipeline
 
-```
+```txt
 ┌───────────────────────────────────────┐
 │        Playback Events (Kafka)        │
 │  - video.playback.started             │
@@ -369,45 +369,55 @@
 ## Technology Stack Summary
 
 ### Layer 1: Load Balancer
+
 - **HAProxy** - 50k connections, SSL/TLS, health checks
 
 ### Layer 2: Application Services
 
-**Rust (I/O Performance)**
+**Rust (I/O Performance):**
+
 - upload-service
 - processing-worker
 - streaming-service
 
-**Java (Business Logic)**
+**Java (Business Logic):**
+
 - video-service
 - job-service
 - analytics-service
 
-**PHP (User Interfaces)**
+**CMS (User Interfaces):**
+
 - drm-service
 - cms-service
 - portal-service
 
 ### Layer 3: Event Streaming
+
 - **Kafka (KRaft mode)** - 40+ topics, 3+ brokers, no ZooKeeper
 
 ### Layer 4: Data Storage
 
 **Operational Data:**
+
 - **PostgreSQL** - Video metadata, jobs, users (Java services)
-- **ClickHouse** - CMS data, permissions, analytics (PHP services)
+- **ClickHouse** - CMS data, permissions, analytics (CMS services)
 
 **Analytics:**
+
 - **ClickHouse** - Time-series analytics (90:1 compression)
 - **Redis** - Real-time counters (< 1ms)
 
 **Object Storage:**
+
 - **MinIO** - Videos, thumbnails (20+ Gbps)
 
 **CDN:**
+
 - **Nginx** - Edge caching (50GB cache)
 
 ### Layer 5: Observability
+
 - **Grafana** - Dashboards
 - **Prometheus** - Metrics
 - **ELK Stack** - Centralized logging
@@ -417,7 +427,7 @@
 ## Performance Metrics
 
 | Component | Throughput | Latency | Scale |
-|-----------|------------|---------|-------|
+| --------- | ---------- | ------- | ------ |
 | **Upload** | 20+ Gbps | < 2ms | 10k+ concurrent |
 | **Transcoding** | 100+ videos/hr | 1x realtime | Parallel workers |
 | **Streaming** | 50+ Gbps | < 1ms | 10k+ viewers |

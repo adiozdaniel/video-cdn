@@ -10,8 +10,8 @@ End-to-end data flows through the system for key use cases.
 
 ## Video Upload Flow
 
-```
-1. User → portal-service (PHP)
+```txt
+1. User → portal-service (CMS)
    ↓
 2. Portal calls upload-service API (Rust)
    ↓
@@ -44,8 +44,8 @@ End-to-end data flows through the system for key use cases.
 
 ## Video Playback Flow (DRM-Protected)
 
-```
-1. User → portal-service video page (PHP)
+```txt
+1. User → portal-service video page (CMS)
    ↓
 2. Check if DRM-protected
    ↓
@@ -78,7 +78,7 @@ End-to-end data flows through the system for key use cases.
 
 ## Content Moderation Flow
 
-```
+```txt
 1. User reports video in portal
    ↓
 2. Kafka: user.video.reported
@@ -102,7 +102,7 @@ End-to-end data flows through the system for key use cases.
 
 ## Content Publishing Flow
 
-```
+```txt
 1. Admin edits video in cms-service
    ↓
 2. Update metadata, thumbnail, tags
@@ -128,26 +128,32 @@ End-to-end data flows through the system for key use cases.
 ## Service Communication Patterns
 
 ### Synchronous (REST APIs)
+
 Used for request-response operations:
+
 - User-facing APIs (portal → services)
 - Admin operations (CMS → services)
 - Health checks
 
 **Example:**
-```
-portal-service (PHP) → HTTP GET → video-service (Java)
+
+```txt
+portal-service (CMS) → HTTP GET → video-service (Java)
   ← JSON response ←
 ```
 
 ### Asynchronous (Kafka Events)
+
 Used for event notifications and background processing:
+
 - Video lifecycle events
 - Analytics tracking
 - Job orchestration
 - Audit logging
 
 **Example:**
-```
+
+```txt
 upload-service (Rust) → Kafka → video.upload.completed
                                       ↓
                            job-service (Java) consumes
